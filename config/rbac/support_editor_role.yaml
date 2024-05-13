@@ -1,0 +1,31 @@
+# permissions for end users to edit supports.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: clusterrole
+    app.kubernetes.io/instance: support-editor-role
+    app.kubernetes.io/component: rbac
+    app.kubernetes.io/created-by: argo-support
+    app.kubernetes.io/part-of: argo-support
+    app.kubernetes.io/managed-by: kustomize
+  name: support-editor-role
+rules:
+- apiGroups:
+  - argosupport.argoproj.extensions.io
+  resources:
+  - supports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - argosupport.argoproj.extensions.io
+  resources:
+  - supports/status
+  verbs:
+  - get
