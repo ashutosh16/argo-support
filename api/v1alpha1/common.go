@@ -2,6 +2,7 @@ package v1alpha1
 
 import (
 	"github.com/argoproj/argo-rollouts/pkg/apis/rollouts"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 )
 
@@ -44,7 +45,7 @@ type Workflow struct {
 	// +kubebuilder:validation:Required
 	Name string `json:"name"`
 	// +kubebuilder:validation:Required
-	Initiate bool `json:"initiate"`
+	InitiatedAt *metav1.Time `json:"initiatedAt,omitempty"`
 	// +kubebuilder:validation:Required
 	Ref []NamespacedObjectReference `json:"autProviderRef"`
 	// +kubebuilder:validation:Optional

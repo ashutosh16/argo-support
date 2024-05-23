@@ -63,13 +63,13 @@ spec:
                       required:
                       - name
                       type: object
-                    initiate:
-                      type: boolean
+                    initiatedAt:
+                      format: date-time
+                      type: string
                     name:
                       type: string
                   required:
                   - autProviderRef
-                  - initiate
                   - name
                   type: object
                 type: array
@@ -86,6 +86,8 @@ spec:
                 type: integer
               phase:
                 type: string
+              restart:
+                type: boolean
               results:
                 description: |-
                   INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
@@ -129,6 +131,8 @@ spec:
                       type: object
                   type: object
                 type: array
+            required:
+            - restart
             type: object
         type: object
     served: true

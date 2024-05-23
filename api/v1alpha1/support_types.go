@@ -41,6 +41,7 @@ type SupportStatus struct {
 	// The generation observed by the  controller from metadata.generation
 	// +kubebuilder:validation:Optional
 	ObservedGeneration int64            `json:"observedGeneration,omitempty"`
+	Restart            bool             ` json:"restart"`
 	Phase              ArgoSupportPhase `json:"phase,omitempty"`
 }
 

@@ -88,7 +88,7 @@ patches:
 #          - .metadata.annotations.[cert-manager.io/inject-ca-from]
 #        options:
 #          delimiter: '/'
-#          index: 1
+#          index: argocd-cm.yaml
 #          create: true
 #      - select:
 #          kind: MutatingWebhookConfiguration
@@ -96,7 +96,7 @@ patches:
 #          - .metadata.annotations.[cert-manager.io/inject-ca-from]
 #        options:
 #          delimiter: '/'
-#          index: 1
+#          index: argocd-cm.yaml
 #          create: true
 #      - select:
 #          kind: CustomResourceDefinition
@@ -104,7 +104,7 @@ patches:
 #          - .metadata.annotations.[cert-manager.io/inject-ca-from]
 #        options:
 #          delimiter: '/'
-#          index: 1
+#          index: argocd-cm.yaml
 #          create: true
 #  - source: # Add cert-manager annotation to the webhook Service
 #      kind: Service
@@ -118,7 +118,7 @@ patches:
 #          version: v1
 #        fieldPaths:
 #          - .spec.dnsNames.0
-#          - .spec.dnsNames.1
+#          - .spec.dnsNames.argocd-cm.yaml
 #        options:
 #          delimiter: '.'
 #          index: 0
@@ -135,8 +135,8 @@ patches:
 #          version: v1
 #        fieldPaths:
 #          - .spec.dnsNames.0
-#          - .spec.dnsNames.1
+#          - .spec.dnsNames.argocd-cm.yaml
 #        options:
 #          delimiter: '.'
-#          index: 1
+#          index: argocd-cm.yaml
 #          create: true

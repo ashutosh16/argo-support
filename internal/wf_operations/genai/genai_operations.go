@@ -84,16 +84,9 @@ func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alph
 
 	app, err := g.argoCDClient.GetRequest(fullUrl, nil)
 
-	if err != nil {
-		return nil, fmt.Errorf("failed to process the request: %v", err)
-	}
-
 	t, _ := g.buildAITokens(ctx, app, obj)
 
-	//if err != nil {
-	//	return nil, fmt.Errorf("error generating tokens")
-	//}
-	//tokensForAI := "{\n          \"failures\": [\n            {\n              \"context\":  }\n    t      ]\n        }"
+	//{\n          \"failures\": [\n            {\n              \"context\":  }\n    t      ]\n        }"
 	failures := ai_provider.Failures{
 		Failures: []ai_provider.Failure{
 			{Context: t},
@@ -159,7 +152,8 @@ func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alph
 			Phase:      v1alpha1.ArgoSupportPhaseCompleted,
 			Message:    "Gen AI request completed",
 		}),
-		Phase: v1alpha1.ArgoSupportPhaseCompleted,
+		Phase:   v1alpha1.ArgoSupportPhaseCompleted,
+		Restart: false,
 	}
 
 	argoOpsobj.Status.Phase = "completed"
@@ -171,7 +165,7 @@ func (g *GenAIOperator) buildAITokens(ctx context.Context, app *ai_provider.Appl
 
 	var builder strings.Builder
 	builder.WriteString(utils.GetInlinePrompt("app-conditions", ""))
-	if app.Status.Health.Status == ai_provider.HealthStatusHealthy {
+	if app != nil && app.Status.Health.Status == ai_provider.HealthStatusHealthy {
 		builder.WriteString(utils.GetInlinePrompt("app-conditions", ""))
 		if len(app.Status.Conditions) > 0 {
 			for _, condition := range app.Status.Conditions {
@@ -180,11 +174,13 @@ func (g *GenAIOperator) buildAITokens(ctx context.Context, app *ai_provider.Appl
 		}
 	}
 
-	// 1. Fetch argo app data and analysis the health and app conditions and return the token
+	// argocd-cm.yaml. Fetch argo app data and analysis the health and app conditions and return the token
 	// 2. Fetch the rollout information and check the health
-	for _, res := range app.Status.Resources {
-		if res.Health != nil && res.Health.Status != ai_provider.HealthStatusHealthy {
-			builder.WriteString(fmt.Sprintf("Resource Name: %s Resource Health: %s  and kubernetes Message: %s", res.Name, res.Health.Status, res.Health.Message))
+	if app != nil {
+		for _, res := range app.Status.Resources {
+			if res.Health != nil && res.Health.Status != ai_provider.HealthStatusHealthy {
+				builder.WriteString(fmt.Sprintf("Resource Name: %s Resource Health: %s  and kubernetes Message: %s", res.Name, res.Health.Status, res.Health.Message))
+			}
 		}
 	}
 

@@ -7,7 +7,6 @@ metadata:
 spec:
   workflows:
   - name: gen-ai
-    initiate: true
     configMapRef:
       name: genai-cm
     autProviderRef:

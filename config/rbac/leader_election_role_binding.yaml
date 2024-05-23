@@ -15,5 +15,5 @@ roleRef:
   name: leader-election-role
 subjects:
 - kind: ServiceAccount
-  name: controller-manager
-  namespace: system
+  name: argo-support-controller-manager
+  namespace: argo-support-system

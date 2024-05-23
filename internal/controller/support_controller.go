@@ -27,6 +27,7 @@ import (
 	"k8s.io/client-go/kubernetes"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sort"
+	"time"
 
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -62,7 +63,7 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	err = r.Get(ctx, req.NamespacedName, &support, &client.GetOptions{})
 	if err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("Argo AI support operation not found", "namespace", req.Namespace, "name", req.Name)
+			logger.Info("Argo support operation not found", "namespace", req.Namespace, "name", req.Name)
 			return ctrl.Result{}, nil
 		}
 		logger.Error(err, "Failed to get Argo AI support operation")
@@ -86,8 +87,9 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if support.ObjectMeta.Generation == support.Status.ObservedGeneration {
 		return ctrl.Result{}, nil
 	}
-	for i, wf := range support.Spec.Workflows {
-		if !wf.Initiate {
+	for _, wf := range support.Spec.Workflows {
+
+		if support.Status.LastTransitionTime != nil && wf.InitiatedAt.After(support.Status.LastTransitionTime.Add(-15*time.Minute)) {
 			continue
 		}
 		now := metav1.Now()
@@ -107,7 +109,6 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 
 			if obj != nil && len(obj.Status.Results) > 1 {
-				wf.Initiate = false
 				sort.SliceStable(obj.Status.Results, func(i, j int) bool {
 					return (obj.Status.Results[i].FinishedAt.Time).After(obj.Status.Results[j].FinishedAt.Time)
 				})
@@ -119,17 +120,6 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			now := metav1.Now()
 			support.Status.LastTransitionTime = &now
 			support.Status.ObservedGeneration = support.ObjectMeta.Generation
-			// Apply the updates returned by wfExecutor.Process to the original support object
-			//support, err = r.patch(original, patch, &now, &support.ObjectMeta.Generation)
-			objCopy := support.DeepCopy()
-			wf.Initiate = false
-			objCopy.Spec.Workflows[i] = wf
-
-			patch := client.MergeFrom(objCopy)
-			if err := r.Client.Patch(ctx, &support, patch); err != nil {
-				logger.Error(err, "failed to patch the workflow initiate field. controller will retry")
-				return ctrl.Result{}, err
-			}
 		} else {
 			support.Status.Phase = supportv1alpha1.ArgoSupportPhaseFailed
 			logger.Error(err, "Failed to get workflow executor")

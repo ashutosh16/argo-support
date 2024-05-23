@@ -1,4 +1,13 @@
-  resource.customizations.actions.argoproj.io_Rollout: |
+# Please edit the object below. Lines beginning with a '#' will be ignored,
+# and an empty file will abort the edit. If an error occurs while saving this file will be
+# reopened with the relevant failures.
+#
+# configmaps "argocd-cm" was not valid:
+# * <nil>: Invalid value: "The edited file failed validation": yaml: line 68: found a tab character where an indentation space is expected
+#
+apiVersion: v1
+data:
+   resource.customizations.actions.argoproj.io_Rollout: |
     discovery.lua: |
        actions = {}
        actions["create-genai"] = {}
@@ -65,10 +74,24 @@
           error("Object is  missing required fields")
         end
         local datetime = os.date("!%Y-%m-%dT%H:%M:%SZ")
-        obj.spec.workflows[1].initiatedAt = datetime
+        obj.spec.workflows.initiatedAt = datetime
         impactedResource = {}
         impactedResource.operation = "patch"
         impactedResource.resource = obj
         local result = {}
         result[1] = impactedResource
         return result
+
+kind: ConfigMap
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"v1","kind":"ConfigMap","metadata":{"annotations":{},"labels":{"app.kubernetes.io/name":"argocd-cm","app.kubernetes.io/part-of":"argocd"},"name":"argocd-cm","namespace":"argocd"}}
+  creationTimestamp: "2024-01-28T20:09:17Z"
+  labels:
+    app.kubernetes.io/name: argocd-cm
+    app.kubernetes.io/part-of: argocd
+  name: argocd-cm
+  namespace: argocd
+  resourceVersion: "1028232"
+  uid: d92b1a0a-0f26-48a0-99df-3a2084a8a178
