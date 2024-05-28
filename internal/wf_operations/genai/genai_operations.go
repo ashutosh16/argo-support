@@ -78,6 +78,7 @@ func NewGenAIOperations(ctx context.Context, k8sClient client.Client, dynamicCli
 }
 
 func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alpha1.Support, error) {
+	logger := log.FromContext(ctx)
 
 	labels := obj.GetLabels()
 	fullUrl := fmt.Sprint(g.argoCDClient.BaseURL + argocdEndPointSuffix + labels["app.kubernetes.io/instance"])
@@ -95,6 +96,8 @@ func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alph
 
 	// Marshal the struct to JSON
 	tokens, _ := json.Marshal(failures)
+	logger.Info("tokens to be processed", "tokens length", len(tokens))
+
 	res, err := g.genAIClient.PostRequest(ctx, string(tokens), genAIEndPointSuffix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to post request: %v", err)
@@ -140,10 +143,11 @@ func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alph
 		SlackChannel: slackSupport,
 	}
 	now := metav1.Now()
+	epochTime := now.Unix()
 
 	argoOpsobj.Status = v1alpha1.SupportStatus{
 		Results: append(argoOpsobj.Status.Results, v1alpha1.Result{
-			Name: argoOpsobj.Spec.Workflows[0].Name,
+			Name: fmt.Sprintf("%s-%d", argoOpsobj.Spec.Workflows[0].Name, epochTime),
 			Summary: v1alpha1.Summary{
 				MainSummary: genSummary,
 			},
@@ -152,11 +156,8 @@ func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alph
 			Phase:      v1alpha1.ArgoSupportPhaseCompleted,
 			Message:    "Gen AI request completed",
 		}),
-		Phase:   v1alpha1.ArgoSupportPhaseCompleted,
-		Restart: false,
+		Phase: v1alpha1.ArgoSupportPhaseCompleted,
 	}
-
-	argoOpsobj.Status.Phase = "completed"
 	return argoOpsobj, nil
 }
 
@@ -165,7 +166,7 @@ func (g *GenAIOperator) buildAITokens(ctx context.Context, app *ai_provider.Appl
 
 	var builder strings.Builder
 	builder.WriteString(utils.GetInlinePrompt("app-conditions", ""))
-	if app != nil && app.Status.Health.Status == ai_provider.HealthStatusHealthy {
+	if app != nil {
 		builder.WriteString(utils.GetInlinePrompt("app-conditions", ""))
 		if len(app.Status.Conditions) > 0 {
 			for _, condition := range app.Status.Conditions {
@@ -216,10 +217,9 @@ func (g *GenAIOperator) buildAITokens(ctx context.Context, app *ai_provider.Appl
 				// Check the latest revision
 				builder.WriteString(aRuns[0].Status.String())
 			}
-			if podList != nil && len(podList) > 1 {
+			if podList != nil && len(podList) >= 1 {
 				// it's okay to just check only one pod, since the error is common
 				logs, err := getLogsForPod(podList[0], r.Namespace, g.kubeClient)
-
 				if err != nil {
 					if strings.Contains(err.Error(), "no error found in logs") {
 						builder.WriteString(utils.GetInlinePrompt("no-pod-error-log", ""))
@@ -233,6 +233,22 @@ func (g *GenAIOperator) buildAITokens(ctx context.Context, app *ai_provider.Appl
 
 			} else {
 				builder.WriteString(utils.GetInlinePrompt("no-pod-log", ""))
+			}
+			if podList != nil && len(podList) >= 1 {
+				podStatus, err := getPodStatus(podList[0], r.Namespace, g.kubeClient)
+				if err != nil {
+					logger.Error(err, "failed to process the pod status")
+				}
+				builder.WriteString(utils.GetInlinePrompt("podContainerStatus", ""))
+				for _, containerStatus := range podStatus.ContainerStatuses {
+					builder.WriteString(fmt.Sprintf("Container Name: %s,started: %b, State: %s, Ready: %t, Restart Count: %d\n",
+						containerStatus.Name, containerStatus.Started, containerStatus.State, containerStatus.Ready, containerStatus.RestartCount))
+				}
+				builder.WriteString(utils.GetInlinePrompt("podInitContainerStatus", ""))
+				for _, containerStatus := range podStatus.InitContainerStatuses {
+					builder.WriteString(fmt.Sprintf("Container Name: %s,started: %b, State: %s, Ready: %t, Restart Count: %d\n",
+						containerStatus.Name, containerStatus.Started, containerStatus.State, containerStatus.Ready, containerStatus.RestartCount))
+				}
 			}
 
 		}
@@ -250,7 +266,7 @@ func (g *GenAIOperator) buildAITokens(ctx context.Context, app *ai_provider.Appl
 	} else {
 		for _, event := range eventList.Items {
 			if event.Message == "Warning" || strings.Contains(event.Message, "Failed") {
-				logger.Info("Failed Event Detected:", "Reason", event.Reason, "Message", event.Message)
+				logger.Info("Failed or Warn Events Detected:", "Reason", event.Reason, "Message", event.Message)
 				builder.WriteString(event.String())
 			}
 		}
@@ -359,6 +375,14 @@ func getLogsForPod(podName, namespace string, kubeClient kubernetes.Interface) (
 	}
 
 	return "", fmt.Errorf("no error found in logs")
+}
+func getPodStatus(podName, namespace string, kubeClient kubernetes.Interface) (*v1.PodStatus, error) {
+	pod, err := kubeClient.CoreV1().Pods(namespace).Get(context.Background(), podName, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("could not get pod: %v", err)
+	}
+
+	return &pod.Status, nil
 }
 
 func minLine(a, b int) int {

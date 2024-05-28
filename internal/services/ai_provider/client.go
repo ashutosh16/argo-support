@@ -72,14 +72,16 @@ func (client *HttpClient) GetAuthorizationHeaderFromIdentityService() (string, e
 	return authorizationHeader, nil
 }
 
-func (client *HttpClient) PostRequest(ctx context.Context, requestData string, endpointSuffix string) (interface{}, error) {
+func (client *HttpClient) PostRequest(ctx context.Context, tokens string, endpointSuffix string) (interface{}, error) {
 	logger := log.FromContext(ctx)
-	logger.Info("Rollout seems to be healthy and should not be included in the genai analysis")
+	if len(tokens) == 0 {
+		return nil, fmt.Errorf("skipping the genai request due to no tokens for genai")
+	}
 
-	if !json.Valid([]byte(requestData)) {
+	if !json.Valid([]byte(tokens)) {
 		return nil, fmt.Errorf("Unable to generate token for GenAI")
 	}
-	body := []byte(requestData)
+	body := []byte(tokens)
 
 	authorizationHeader, err := client.GetAuthorizationHeaderFromIdentityService()
 	if err != nil {
@@ -98,6 +100,7 @@ func (client *HttpClient) PostRequest(ctx context.Context, requestData string, e
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		logger.Error(err, "received response error from genai", "status-code", resp.StatusCode)
 		return nil, err
 	}
 
@@ -115,6 +118,7 @@ func (client *HttpClient) PostRequest(ctx context.Context, requestData string, e
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("unexpected response status: %v", resp.Status)
 	}
+
 	return resData, nil
 }
 

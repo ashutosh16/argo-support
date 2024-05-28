@@ -1,6 +1,6 @@
 const path = require('path');
 
-const extName = "GenAI";
+const extName = "unified-viewer";
 
 const config = {
   entry: {
@@ -25,7 +25,7 @@ const config = {
         loader: 'ts-loader',
         options: {
           allowTsInNodeModules: true,
-          configFile: path.resolve('./src/tsconfig.json')
+          configFile: path.resolve('./tsconfig.json')
         },
       },
       {
@@ -47,6 +47,17 @@ const config = {
         include: /node_modules/,
         type: "javascript/auto"
     },
+      {
+        test: /\.(png|svg|jpg|jpeg|gif)$/i,
+        exclude: /node_modules/,
+        use: {
+          loader: 'file-loader',
+          options: {
+            name: '[name].[hash].[ext]',
+            outputPath: 'src/images',
+          },
+        },
+        },
     ],
   },
 };

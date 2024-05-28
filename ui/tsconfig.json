@@ -1,27 +1,21 @@
 {
   "compilerOptions": {
-    "outDir": "./../../dist/app",
+    "outDir": "./dist",
     "sourceMap": true,
-    "noImplicitAny": true,
-    "module": "esnext",
-    "moduleResolution": "node",
-    "target": "es5",
+    "noImplicitAny": false,
+    "module": "commonjs",
+    "target": "es6",
     "jsx": "react",
+    "moduleResolution": "node",
     "experimentalDecorators": true,
-    "allowSyntheticDefaultImports": true,
     "noUnusedLocals": true,
     "declaration": false,
-    "lib": [
-      "es2017",
-      "dom"
-    ]
+    "esModuleInterop": false,
+    "allowSyntheticDefaultImports": true,    
+    "resolveJsonModule": true,
+    "downlevelIteration": true ,
+    "lib": ["es2017", "dom"]
   },
-  "include": [
-    "./**/*"
-  ],
-  "exclude": [
-    "node_modules",
-    "./**/*.test.ts",
-    "./**/*.test.tsx"
-  ]
-}
+  "include": ["./**/*"],
+  "exclude": ["node_modules"]
+} 

@@ -36,12 +36,12 @@ type SupportSpec struct {
 type SupportStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
+	Count              int64        `json:"count,omitempty"`
 	Results            []Result     `json:"results,omitempty"`
 	LastTransitionTime *metav1.Time `json:"lastTransitionTime,omitempty"`
 	// The generation observed by the  controller from metadata.generation
 	// +kubebuilder:validation:Optional
 	ObservedGeneration int64            `json:"observedGeneration,omitempty"`
-	Restart            bool             ` json:"restart"`
 	Phase              ArgoSupportPhase `json:"phase,omitempty"`
 }
 

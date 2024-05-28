@@ -40,6 +40,8 @@ data:
         workflows.name = "gen-ai"
         local datetime = os.date("!%Y-%m-%dT%H:%M:%SZ")
         workflows.initiatedAt = datetime
+        workflows.delay = 5 
+        workflows.retryLimit = 3
         workflows.configMapRef = {}
         workflows.configMapRef.name =  "genai-cm"
         workflows.autProviderRef = {}

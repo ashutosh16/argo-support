@@ -30,6 +30,7 @@ const (
 	ArgoSupportPhaseRunning   ArgoSupportPhase = "Running"
 	ArgoSupportPhaseCompleted ArgoSupportPhase = "Completed"
 	ArgoSupportPhaseFailed    ArgoSupportPhase = "Failed"
+	ArgoSupportPhaseError     ArgoSupportPhase = "Error"
 )
 
 type Auth struct {
@@ -50,6 +51,8 @@ type Workflow struct {
 	Ref []NamespacedObjectReference `json:"autProviderRef"`
 	// +kubebuilder:validation:Optional
 	ConfigMapRef ConfigMapRef `json:"configMapRef"`
+	RetryLimit   int64        `json:"retryLimit,omitempty"`
+	Delay        int          `json:"delay,omitempty"`
 }
 
 type NamespacedObjectReference struct {

@@ -2658,6 +2658,10 @@ aproba@^1.1.1:
   resolved "https://registry.yarnpkg.com/aproba/-/aproba-1.2.0.tgz#6802e6264efd18c790a1b0d517f0f2627bf2c94a"
   integrity sha512-Y9J6ZjXtoYh8RnXVCMOU/ttDmk1aBjunq9vO0ta5x85WDQiQfUF9sIPBITdbiiIVcBo03Hi3jMxigBtsddlXRw==
 
+"argo-rollouts@git+https://github.com/argoproj/argo-rollouts.git#0eff316b85296ffcaae6306a91d4b7db78f63a86":
+  version "0.0.0"
+  resolved "git+https://github.com/argoproj/argo-rollouts.git#0eff316b85296ffcaae6306a91d4b7db78f63a86"
+
 "argo-ui@git+https://github.com/argoproj/argo-ui.git#5ff344ac9692c14dd108468bd3c020c3c75181cb":
   version "1.0.0"
   resolved "git+https://github.com/argoproj/argo-ui.git#5ff344ac9692c14dd108468bd3c020c3c75181cb"
@@ -2682,6 +2686,10 @@ aproba@^1.1.1:
     uuid "^9.0.0"
     xterm "^4.19.0"
     xterm-addon-fit "^0.5.0"
+
+"argocd-extension-metrics@git+https://github.com/argoproj-labs/argocd-extension-metrics.git#4e5a53123fee81fceab618802011fac4cf1b43fe":
+  version "0.0.0"
+  resolved "git+https://github.com/argoproj-labs/argocd-extension-metrics.git#4e5a53123fee81fceab618802011fac4cf1b43fe"
 
 "argocd@https://github.com/argoproj/argo-cd.git":
   version "0.0.0"

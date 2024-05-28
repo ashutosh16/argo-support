@@ -516,7 +516,7 @@ spec:
         - --leader-elect
         command:
         - /manager
-        image: docker.intuit.com/personal/asingh51/argo-support:v0.1-patch2
+        image: docker.intuit.com/personal/asingh51/argo-support:v0.1-patch6
         livenessProbe:
           httpGet:
             path: /healthz

@@ -135,6 +135,10 @@ func GetInlinePrompt(step string, data string) string {
 		return "<prompt>When analyzing analysisRun resource; summarize the failed metrics and provide the summary</prompt>"
 	case "logs":
 		return "<prompt>evaluate the logs for error that causing the failure. In you summary highlight any pods failure that causing pods to fail</prompt>"
+	case "podContainerStatus":
+		return "<prompt>evaluate the containerStatus for error that causing the failure. In you summary highlight any container status that causing pods to fail</prompt>"
+	case "podInitContainerStatus":
+		return "<prompt>evaluate the InitContainerStatuses for error that causing the failure. In you summary highlight any Initcontainer status that causing pods to fail</prompt>"
 	default:
 		return ""
 	}

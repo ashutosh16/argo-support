@@ -23,17 +23,18 @@ import (
 	"github.com/argoproj-labs/argo-support/internal/wf_operations/genai"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
-	"sort"
-	"time"
-
-	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sort"
+	"time"
 )
+
+const requeueDelay = 30 * time.Second
 
 // SupportReconciler reconciles a Support object
 type SupportReconciler struct {
@@ -56,6 +57,7 @@ type SupportReconciler struct {
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.17.2/pkg/reconcile
+
 func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	logger := log.FromContext(ctx)
 	var err error
@@ -69,41 +71,39 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		logger.Error(err, "Failed to get Argo AI support operation")
 		return ctrl.Result{}, err
 	}
-	/*
-		TODO
-			// Do not attempt to further reconcile the ApplicationSet if it is being deleted.
-			if support.ObjectMeta.DeletionTimestamp != nil {
-				support := support.ObjectMeta.Name
-				logger.Info("DeletionTimestamp is set on %s", support)
-				controllerutil.RemoveFinalizer(&support, v1alpha1.ResourcesFinalizerName)
-				if err := r.Status().Update(ctx, &support); err != nil {
-					return ctrl.Result{}, err
-				}
-				return ctrl.Result{}, nil
-			}
-	*/
-	_ = log.FromContext(ctx)
+
+	err = r.handleFinalizer(ctx, &support)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
 	if support.ObjectMeta.Generation == support.Status.ObservedGeneration {
-		return ctrl.Result{}, nil
+		logger.Info("skipping..no change to spec version with observed version", "support.ObjectMeta.Generation", support.Status.ObservedGeneration)
+		return ctrl.Result{}, err
 	}
+
 	for _, wf := range support.Spec.Workflows {
 
-		if support.Status.LastTransitionTime != nil && wf.InitiatedAt.After(support.Status.LastTransitionTime.Add(-15*time.Minute)) {
+		if support.Status.Count == wf.RetryLimit {
+			support.Status.Phase = supportv1alpha1.ArgoSupportPhaseError
 			continue
 		}
 		now := metav1.Now()
 		support.Status.LastTransitionTime = &now
 		support.Status.Phase = supportv1alpha1.ArgoSupportPhaseRunning
-
+		support.Status.Count++
+		if err := r.Status().Update(ctx, &support); err != nil {
+			logger.Error(err, "Failed to update Support status to running")
+			return ctrl.Result{}, err
+		}
 		// Pass support as an argument to getWfExecutor
 		wfExecutor, err := r.getWfExecutor(ctx, &wf, &support)
-
 		if wfExecutor != nil {
+
 			// Pass support as an argument to wfExecutor.Process
 			obj, err := wfExecutor.Process(ctx, &support)
 			if err != nil {
-				logger.Info("Failed to process workflow")
+				logger.Error(err, "Failed to process workflow")
 				support.Status.Phase = supportv1alpha1.ArgoSupportPhaseFailed
 				continue
 			}
@@ -119,20 +119,22 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			}
 			now := metav1.Now()
 			support.Status.LastTransitionTime = &now
-			support.Status.ObservedGeneration = support.ObjectMeta.Generation
 		} else {
 			support.Status.Phase = supportv1alpha1.ArgoSupportPhaseFailed
 			logger.Error(err, "Failed to get workflow executor")
 		}
 	}
+	if support.Status.Phase == supportv1alpha1.ArgoSupportPhaseCompleted || support.Status.Phase == supportv1alpha1.ArgoSupportPhaseError {
+		support.Status.Count = 0
+		support.Status.ObservedGeneration = support.ObjectMeta.Generation
+	}
 
 	// Update support object in Kubernetes with latest status
 	if err := r.Status().Update(ctx, &support); err != nil {
-		logger.Error(err, "Failed to update Argo AI support status to completed")
+		logger.Error(err, "Failed to update Support status to completed")
 		return ctrl.Result{}, err
 	}
 	// TODO(user): your logic here
-
 	return ctrl.Result{}, nil
 }
 

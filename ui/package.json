@@ -7,6 +7,8 @@
     "@fortawesome/free-solid-svg-icons": "^6.4.0",
     "@fortawesome/react-fontawesome": "^0.2.0",
     "argo-ui": "git+https://github.com/argoproj/argo-ui.git#5ff344ac9692c14dd108468bd3c020c3c75181cb",
+    "argo-rollouts": "git+https://github.com/argoproj/argo-rollouts.git#0eff316b85296ffcaae6306a91d4b7db78f63a86",
+    "argocd-extension-metrics": "git+https://github.com/argoproj-labs/argocd-extension-metrics.git#4e5a53123fee81fceab618802011fac4cf1b43fe",
     "argocd": "https://github.com/argoproj/argo-cd.git",
     "classnames": "2.2.6",
     "json-loader": "^0.5.7",
