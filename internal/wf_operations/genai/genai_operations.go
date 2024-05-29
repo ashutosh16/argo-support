@@ -153,7 +153,6 @@ func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alph
 			},
 			Help:       help,
 			FinishedAt: &now,
-			Phase:      v1alpha1.ArgoSupportPhaseCompleted,
 			Message:    "Gen AI request completed",
 		}),
 		Phase: v1alpha1.ArgoSupportPhaseCompleted,

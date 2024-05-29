@@ -106,11 +106,11 @@ export const Summary = ({ application, resource }) => {
 
 
     const renderContent = () => {
-        if (result.status.phase === "Running") {
+        if (result.status.phase === "running") {
             return <div><i className="fa fa-spinner" /> GenAI process is running. Wait...</div>;
-        } else if (result.status.phase === "Failed") {
+        } else if (result.status.phase === "failed") {
             return <div>Unable to fetch the response from GenAI.Retry..</div>;
-        } else if (result.status.phase === "Completed") {
+        } else if (result.status.phase === "completed") {
             return (
                 <React.Fragment>
                     <div className="summary__header">
@@ -146,7 +146,7 @@ export const Summary = ({ application, resource }) => {
         }
         return <div>
             No data available or fetch failed. &nbsp;
-            <button className={`${buttonDisabled ? 'summary__btn-disable' : ''} argo-button argo-button--base`} onClick={() =>  initiateAction("update-genai")}>
+            <button className={`argo-button argo-button--base`} onClick={() =>  initiateAction("update-genai")}>
                 Summarize again
             </button>
         </div>;

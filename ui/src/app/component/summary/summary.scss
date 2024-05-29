@@ -7,6 +7,8 @@
     }
 
     &__btn-enable {
+      pointer-events: auto;
+      opacity: 0.5;
     }
 
     &__header {

@@ -27,10 +27,10 @@ type ArgoSupportPhase string
 
 // Possible ArgoSupportPhase values
 const (
-	ArgoSupportPhaseRunning   ArgoSupportPhase = "Running"
-	ArgoSupportPhaseCompleted ArgoSupportPhase = "Completed"
-	ArgoSupportPhaseFailed    ArgoSupportPhase = "Failed"
-	ArgoSupportPhaseError     ArgoSupportPhase = "Error"
+	ArgoSupportPhaseRunning   ArgoSupportPhase = "running"
+	ArgoSupportPhaseCompleted ArgoSupportPhase = "completed"
+	ArgoSupportPhaseFailed    ArgoSupportPhase = "failed"
+	ArgoSupportPhaseError     ArgoSupportPhase = "error"
 )
 
 type Auth struct {

@@ -4,23 +4,55 @@ kind: ClusterRole
 metadata:
   name: manager-role
 rules:
-  - apiGroups:
-      - argosupport.argoproj.extensions.io
-    resources:
-      - '*'
-    verbs:
-      - create
-      - delete
-      - get
-      - list
-      - patch
-      - update
-      - watch
-  - apiGroups:
-      - '*'
-    resources:
-      - '*'
-    verbs:
-      - get
-      - list
-      - watch
+- apiGroups:
+  - argosupport.argoproj.extensions.io
+  resources:
+  - authproviders
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - argosupport.argoproj.extensions.io
+  resources:
+  - authproviders/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - argosupport.argoproj.extensions.io
+  resources:
+  - authproviders/status
+  verbs:
+  - get
+  - patch
+  - update
+- apiGroups:
+  - support.argoproj.extensions.io
+  resources:
+  - supports
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - support.argoproj.extensions.io
+  resources:
+  - supports/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - support.argoproj.extensions.io
+  resources:
+  - supports/status
+  verbs:
+  - get
+  - patch
+  - update

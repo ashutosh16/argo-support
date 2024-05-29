@@ -61,14 +61,13 @@ type Summary struct {
 }
 
 type Result struct {
-	Feedback   Feedback         `json:"feedback,omitempty"`
-	FinishedAt *metav1.Time     `json:"finishedAt,omitempty"`
-	Help       Help             `json:"help,omitempty"`
-	Name       string           `json:"name,omitempty"`
-	StartedAt  *metav1.Time     `json:"startedAt,omitempty"`
-	Summary    Summary          `json:"summary,omitempty"`
-	Message    string           `json:"message,omitempty"`
-	Phase      ArgoSupportPhase `json:"phase,omitempty"`
+	Feedback   Feedback     `json:"feedback,omitempty"`
+	FinishedAt *metav1.Time `json:"finishedAt,omitempty"`
+	Help       Help         `json:"help,omitempty"`
+	Name       string       `json:"name,omitempty"`
+	StartedAt  *metav1.Time `json:"startedAt,omitempty"`
+	Summary    Summary      `json:"summary,omitempty"`
+	Message    string       `json:"message,omitempty"`
 }
 
 //+kubebuilder:object:root=true

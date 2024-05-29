@@ -1,0 +1,31 @@
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  annotations:
+    kubectl.kubernetes.io/last-applied-configuration: |
+      {"apiVersion":"rbac.authorization.k8s.io/v1","kind":"ClusterRole","metadata":{"annotations":{},"name":"argo-support-manager-role"},"rules":[{"apiGroups":["argosupport.argoproj.extensions.io"],"resources":["authproviders"],"verbs":["create","delete","get","list","patch","update","watch"]},{"apiGroups":["argosupport.argoproj.extensions.io"],"resources":["authproviders/finalizers"],"verbs":["update"]},{"apiGroups":["argosupport.argoproj.extensions.io"],"resources":["authproviders/status"],"verbs":["get","patch","update"]},{"apiGroups":["support.argoproj.extensions.io"],"resources":["supports"],"verbs":["create","delete","get","list","patch","update","watch"]},{"apiGroups":["support.argoproj.extensions.io"],"resources":["supports/finalizers"],"verbs":["update"]},{"apiGroups":["support.argoproj.extensions.io"],"resources":["supports/status"],"verbs":["get","patch","update"]}]}
+  creationTimestamp: "2024-05-17T23:58:38Z"
+  name: argo-support-manager-role
+  resourceVersion: "1109318"
+  uid: 87730a98-551a-4925-b076-50c1f00cc268
+rules:
+- apiGroups:
+  - argosupport.argoproj.extensions.io
+  resources:
+  - '*'
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - '*'
+  resources:
+  - '*'
+  verbs:
+  - get
+  - list
+  - watch

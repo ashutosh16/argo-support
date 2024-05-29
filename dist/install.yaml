@@ -148,11 +148,16 @@ spec:
                       required:
                       - name
                       type: object
+                    delay:
+                      type: integer
                     initiatedAt:
                       format: date-time
                       type: string
                     name:
                       type: string
+                    retryLimit:
+                      format: int64
+                      type: integer
                   required:
                   - autProviderRef
                   - name
@@ -162,6 +167,12 @@ spec:
           status:
             description: SupportStatus defines the observed state of Support
             properties:
+              count:
+                description: |-
+                  INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+                  Important: Run "make" to regenerate code after modifying this file
+                format: int64
+                type: integer
               lastTransitionTime:
                 format: date-time
                 type: string
@@ -171,12 +182,7 @@ spec:
                 type: integer
               phase:
                 type: string
-              restart:
-                type: boolean
               results:
-                description: |-
-                  INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
-                  Important: Run "make" to regenerate code after modifying this file
                 items:
                   properties:
                     feedback:
@@ -216,8 +222,6 @@ spec:
                       type: object
                   type: object
                 type: array
-            required:
-            - restart
             type: object
         type: object
     served: true
@@ -285,57 +289,26 @@ metadata:
   name: argo-support-manager-role
 rules:
 - apiGroups:
-  - argosupport.argoproj.extensions.io
+    - argosupport.argoproj.extensions.io
   resources:
-  - authproviders
+    - '*'
   verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
+    - create
+    - delete
+    - get
+    - list
+    - patch
+    - update
+    - watch
 - apiGroups:
-  - argosupport.argoproj.extensions.io
+    - '*'
   resources:
-  - authproviders/finalizers
+    - '*'
   verbs:
-  - update
-- apiGroups:
-  - argosupport.argoproj.extensions.io
-  resources:
-  - authproviders/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - support.argoproj.extensions.io
-  resources:
-  - supports
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - support.argoproj.extensions.io
-  resources:
-  - supports/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - support.argoproj.extensions.io
-  resources:
-  - supports/status
-  verbs:
-  - get
-  - patch
-  - update
+    - get
+    - list
+    - watch
+
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
