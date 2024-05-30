@@ -7,10 +7,7 @@ metadata:
   name: genai-auth-provider
 spec:
   auth:
-    baseUrl: "https://ibpgenai-e2e.api.intuit.com"
-    appId: "Intuit.dev.build.ibpgenaiservice"
-    identityEndpoint: "https://identityinternal-e2e.api.intuit.com"
-    identityJobID: "9341450931784620"
-    apiVersion: "v2"
+    baseUrl: "https://localhost:8080"
+    appId: ""
   secretRef:
     name: genai-secret
