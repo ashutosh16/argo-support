@@ -1,161 +1,174 @@
-import React, { useState, useEffect } from 'react';
-import './summary.scss';
-import { FeedbackComponent } from '../feedback/feedback';
-import { ResourceCards } from '../resourcecard/resourcecard';
+    import React, { useState, useEffect } from 'react';
+    import './summary.scss';
+    import { FeedbackComponent } from '../feedback/feedback';
+    import { ResourceCards } from '../resourcecard/resourcecard';
+    import * as Const from '../../shared/constants';
+    import Moment from 'react-moment';
 
-const GenAI = 'gen-ai';
+    function formatTimeDifference (startTime: string, endTime: string)  {
+        const diffInSeconds = Math.floor((new Date(endTime).getTime() - new Date(startTime).getTime()) / 1000);
+        const seconds = diffInSeconds % 60;
+        return `${seconds}s`;
+    };
 
-const apiUrls = {
-    fetchGenAIStatus: (appName, appNamespace, destNamespace) =>
-        `/api/v1/applications/${appName}/resource?name=${GenAI}&appNamespace=${appNamespace}&resourceName=${GenAI}&namespace=${destNamespace}&version=v1alpha1&kind=Support&group=argosupport.argoproj.extensions.io`,
-    createGenAIAction: (appName, appNamespace, destNamespace, resourceName) =>
-        `/api/v1/applications/${appName}/resource/actions?appNamespace=${appNamespace}&namespace=${destNamespace}&resourceName=${resourceName}&version=v1alpha1&kind=Rollout&group=argoproj.io`,
-    updateGenAIAction: (appName, appNamespace, destNamespace, resourceName) =>
-        `/api/v1/applications/${appName}/resource/actions?appNamespace=${appNamespace}&namespace=${destNamespace}&resourceName=${GenAI}&version=v1alpha1&kind=Support&group=argosupport.argoproj.extensions.io`
-,
-};
+    export const Summary = ({ application, resource , }) => {
+        const [obj, setObj] = useState(null);
 
-const isFetchNeeded = (lastTransitionTime) => {
-    const fiveMinutesAgo = new Date(Date.now() - 5 * 60 * 1000).getTime();
-
-
-    return lastTransitionTime > fiveMinutesAgo;
-};
-
-export const Summary = ({ application, resource }) => {
-    const [result, setResult] = useState(null);
-    const [isLoading, setIsLoading] = useState(true);
-    const [buttonDisabled, setButtonDisabled] = useState(true);
-
-
-    const { metadata, spec } = application;
-    const applicationName = metadata?.name || '';
-    const applicationNamespace = metadata?.namespace || '';
-    const destNamespace = spec.destination.namespace || '';
+        //const [disableButton, setDisableButton] = useState(true);
+        const {metadata, spec, status} = application;
+        const applicationName = metadata?.name || '';
+        const applicationNamespace = metadata?.namespace || '';
+        const destNamespace = spec?.destination?.namespace || '';
+        const isHealthy = status?.health?.status !== "Healthy" || status?.conditions && status.conditions.length;
 
 
 
-    useEffect(() => {
-        if (application?.status?.health?.status !== "Healthy" || (application?.status?.conditions && application.status.conditions.length > 0)) {
-            const actions = async () => {
-                try {
-                    await initiateAction("create-genai");
-                    await fetchGenAIResource();
-                    const interval = setInterval(fetchGenAIResource, 20000);
-                    return () => {
-                        setIsLoading(false)
-                        clearInterval(interval);
-                    };
-                } catch (error) {
-                    console.error("Error in setting up GenAI actions:", error);
-                }
-            };
-            actions();
-        }
-    }, []);
+        useEffect(() => {
+            fetchStatus("create-genai");
+        }, [status?.health?.status !== "Healthy",status?.conditions && status.conditions]);
 
-    const fetchGenAIResource = async () => {
-
-        const fetchData = async () => {
-
+        const fetchStatus = async (requestType: string) => {
             try {
-            const response = await fetch(apiUrls.fetchGenAIStatus(applicationName, applicationNamespace, destNamespace));
-            if (!response.ok) initiateAction("create-genai")
-            const data = await response.json();
-
-                const jsonData = typeof data.manifest === "string" ? JSON.parse(data.manifest) : data.manifest;
-                setResult(jsonData);
-
-                    const lastTransitionTime = new Date(jsonData?.status?.lastTransitionTime).getTime();
-                    setButtonDisabled(isFetchNeeded(lastTransitionTime));
-                    setIsLoading(false);
-
+                let jsonData = null;
+                do {
+                    const statusResponse = await fetch(Const.APIs.fetchGenAIStatus(applicationName, applicationNamespace, destNamespace));
+                    if (statusResponse.ok) {
+                        const data = await statusResponse.json();
+                        jsonData = typeof data.manifest === "string" ? JSON.parse(data.manifest) : data.manifest;
+                    } else {
+                        console.log('GenAI does not exist');
+                        if(requestType != ""){
+                            await GenAIResource(requestType);
+                        }
+                    }
+                    setObj(jsonData);
+                    await new Promise(resolve => setTimeout(resolve, 5000));
+                } while (jsonData?.status?.phase !== "completed" && jsonData?.status?.phase !== "error");
 
             } catch (error) {
-                setIsLoading(false);
+                console.error('Error fetching GenAI status:', error);
             }
         };
-        fetchData();
-    };
 
-    const initiateAction = async (requestType: string) => {
-        setIsLoading(true);
-
-        try {
-            let url;
-            if (requestType === "create-genai") {
-                url = apiUrls.createGenAIAction(applicationName, applicationNamespace, destNamespace, resource.metadata.name);
-            } else {
-                url = apiUrls.updateGenAIAction(applicationName, applicationNamespace, destNamespace, resource.metadata.name);
-            }
-            const response = await fetch(url, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestType),
+        const patchAnnotation = async () => {
+            const url = Const.APIs.patchAnnotation(applicationName, applicationNamespace, destNamespace);
+            const patch = JSON.stringify({
+                "metadata": {
+                    "annotations": {
+                        "argosupport.argoproj.extensions.io/genai": `${JSON.stringify(application.status)}`
+                    }
+                }
             });
+            try {
+                const response = await fetch(url, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(patch)
+                });
 
-            if (response.ok) {
-                fetchGenAIResource();
-            } else if (response.status === 409) {
-                console.log('GenAI resource already exists in the namespace');
+                if (!response.ok) throw new Error('error patching the genai resource');
+
+                const patchedData = await response.json();
+                await new Promise(resolve => setTimeout(resolve, 800));
+                console.log('Patch request successful:', patchedData);
+            } catch (error) {
+                console.error('Error in patch request:', error);
             }
-        } catch (error) {
-            console.error('Error initiating GenAI action:', error);
-        }
-    };
+        };
+        const GenAIResource = async (requestType) => {
+            try {
+                setObj(null)
+                if (requestType === "create-genai") {
+                    await fetch(Const.APIs.createGenAIAction(applicationName, applicationNamespace, destNamespace, resource.metadata.name), {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify(requestType),
+                    });
+                }
+                await new Promise(resolve => setTimeout(resolve, 800));
+                await patchAnnotation();
+                await new Promise(resolve => setTimeout(resolve, 800));
+                const updateResponse = await fetch(Const.APIs.updateGenAIAction(applicationName, applicationNamespace, destNamespace, resource.metadata.name), {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify("update-genai")
+                });
+                if (!updateResponse.ok) throw new Error('Error updating GenAI action');
 
+                await fetchStatus('');
 
-    const renderContent = () => {
-        if (result.status.phase === "running") {
-            return <div><i className="fa fa-spinner" /> GenAI process is running. Wait...</div>;
-        } else if (result.status.phase === "failed") {
-            return <div>Unable to fetch the response from GenAI.Retry..</div>;
-        } else if (result.status.phase === "completed") {
-            return (
-                <React.Fragment>
-                    <div className="summary__header">
-                        <h1>Summary</h1>
+            } catch (error) {
+                console.error('Error initiating GenAI action:', error);
+            }
+        };
+
+        const renderContent = () => {
+            if (obj.status.phase === "running") {
+                return <div><i className="fa fa-spinner" />
+                    <div>
+                        <img src="/images/intuit_assist_icon.svg" alt="thinking..." width="32" height="32"/> Thinking...
                     </div>
-                    <button disabled={buttonDisabled} className={`${buttonDisabled ? 'summary__btn-disable' : ''} argo-button argo-button--base`} onClick={() =>  initiateAction("update-genai")}>
-                        Summarize again
-                    </button>
-                    {buttonDisabled && <small style={{ marginLeft: '10px' }}>Wait for 5 mins</small>}
-                    <div className="summary__feedback">
-                        <FeedbackComponent />
-                    </div>
-                    <div className="summary__content">
-                        <div className="summary__row">
-                            <div className="summary__row__label">Overview</div>
-                            <div className="summary__row__value">
-                                {result.status.results[0].summary.mainSummary.split('-/-/-/-').map((part, index) => (
-                                    <React.Fragment key={index}>
-                                        {index === 0 && <p>{part}</p>}
-                                    </React.Fragment>
-                                ))}
+                </div>
+            } else if (obj.status.phase === "failed") {
+                return <div>Unable to fetch the response from GenAI. Retrying..</div>;
+            } else if (obj.status.phase === "completed") {
+                return (
+                    <React.Fragment>
+                        <div className="summary__header">
+                            <h1>Summary</h1>
+                        </div>
+                        <button className={`argo-button argo-button--base`} onClick={async () => {
+                            await GenAIResource("update-genai");
+                        }}>
+                            Summarize again
+                        </button>
+                        <div className="summary__header-info">
+                            Last summarized at: &nbsp;
+                            <Moment local={true} fromNow={true} ago={true}>
+                                {obj.status.results[0].finishedAt}
+                            </Moment> &nbsp; ago
+                        </div>
+                        <div className="summary__header-info">
+                            Total time: &nbsp;
+                            {formatTimeDifference(obj.spec.workflows[0].initiatedAt, obj.status.results[0].finishedAt)}
+                        </div>
+                        <div className="summary__feedback">
+                            <FeedbackComponent />
+                        </div>
+                        <div className="summary__content">
+                            <div className="summary__row">
+                                <div className="summary__row__value">
+                                    {obj.status.results[0].summary.mainSummary.split('-/-/-/-').map((part, index) => (
+                                        <React.Fragment key={index}>
+                                            {index === 0 && <div className='summary__row__value-text'>{part}</div>}
+                                        </React.Fragment>
+                                    ))}
+                                </div>
+                            </div>
+                            <p className="warning">
+                                <i className="fa fa-exclamation-triangle" /> Summary may display inaccurate info, including about custom resources, so double-check its responses
+                            </p>
+                            <div style={{ paddingTop: "50px", width: "450px" }} className="summary__row">
+                                <ResourceCards app={application} />
                             </div>
                         </div>
-                        <p className="warning">
-                            <i className="fa fa-exclamation-triangle" /> Summary may display inaccurate info, including about deployment, so double-check its responses
-                        </p>
-                        <div style={{ paddingTop: "50px" }} className="summary__row">
-                            <ResourceCards app={application} />
-                        </div>
-                    </div>
-                </React.Fragment>
-            );
-        }
-        return <div>
-            No data available or fetch failed. &nbsp;
-            <button className={`argo-button argo-button--base`} onClick={() =>  initiateAction("update-genai")}>
-                Summarize again
-            </button>
-        </div>;
+                    </React.Fragment>
+                );
+            }
+            return <div>
+                No data available or fetch failed. &nbsp;
+                <button className={`argo-button argo-button--base`} onClick={async () => {
+                    await GenAIResource("update-genai");
+                }}>Summarize again
+                </button>
+            </div>;
+        };
+        if (!isHealthy)  {
+            return <div>App is healthy. No GenAI summary to display</div>;
+        } else {
+            return obj?.status ? renderContent() : <div>
+                <img src="/images/intuit_assist_icon.svg" alt="thinking..." width="32" height="32"/>
+                Thinking...
+            </div>;            }
     };
-
-    if (application?.Status?.Conditions > 0)  {
-        return <div>App is healthy. No GenAI summary to display</div>;
-    } else {
-        return !isLoading && result?.status ? renderContent() : <div><i className="fa fa-spinner" /> Fetching data...</div>;
-    }
-};
 

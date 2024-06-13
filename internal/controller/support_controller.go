@@ -24,17 +24,21 @@ import (
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/kubernetes"
+	"k8s.io/client-go/util/retry"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/builder"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/predicate"
 	"sort"
 	"time"
 )
 
-const requeueDelay = 30 * time.Second
+const ReconcileRequeueOnValidationError = 10 * time.Second
 
 // SupportReconciler reconciles a Support object
 type SupportReconciler struct {
@@ -68,7 +72,7 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			logger.Info("Argo support operation not found", "namespace", req.Namespace, "name", req.Name)
 			return ctrl.Result{}, nil
 		}
-		logger.Error(err, "Failed to get Argo AI support operation")
+		logger.Error(err, "Failed to get Argo support")
 		return ctrl.Result{}, err
 	}
 
@@ -76,38 +80,42 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-
-	if support.ObjectMeta.Generation == support.Status.ObservedGeneration {
+	if support.Status.Phase == supportv1alpha1.ArgoSupportPhaseFailed ||
+		support.Status.Phase == supportv1alpha1.ArgoSupportPhaseRunning {
+		logger.Info("spec is  not observed", "support.ObjectMeta.Generation", support.Status.ObservedGeneration)
+	} else if support.ObjectMeta.Generation == support.Status.ObservedGeneration {
 		logger.Info("skipping..no change to spec version with observed version", "support.ObjectMeta.Generation", support.Status.ObservedGeneration)
-		return ctrl.Result{}, err
+		return ctrl.Result{}, nil
 	}
 
+	now := metav1.Now()
+	support.Status.LastTransitionTime = &now
+	support.Status.Phase = supportv1alpha1.ArgoSupportPhaseRunning
+	support.Status.Count++
+	if err := r.Status().Update(ctx, &support); err != nil {
+		logger.Error(err, "failed to update Support status to completed")
+		return ctrl.Result{}, err
+	}
 	for _, wf := range support.Spec.Workflows {
 
 		if support.Status.Count == wf.RetryLimit {
 			support.Status.Phase = supportv1alpha1.ArgoSupportPhaseError
 			continue
 		}
-		now := metav1.Now()
-		support.Status.LastTransitionTime = &now
-		support.Status.Phase = supportv1alpha1.ArgoSupportPhaseRunning
-		support.Status.Count++
-		if err := r.Status().Update(ctx, &support); err != nil {
-			logger.Error(err, "Failed to update Support status to running")
-			return ctrl.Result{}, err
-		}
+
 		// Pass support as an argument to getWfExecutor
 		wfExecutor, err := r.getWfExecutor(ctx, &wf, &support)
 		if wfExecutor != nil {
 
-			// Pass support as an argument to wfExecutor.Process
 			obj, err := wfExecutor.Process(ctx, &support)
 			if err != nil {
 				logger.Error(err, "Failed to process workflow")
 				support.Status.Phase = supportv1alpha1.ArgoSupportPhaseFailed
 				continue
 			}
-
+			if support.Status.Phase == supportv1alpha1.ArgoSupportPhaseRunning {
+				continue
+			}
 			if obj != nil && len(obj.Status.Results) > 1 {
 				sort.SliceStable(obj.Status.Results, func(i, j int) bool {
 					return (obj.Status.Results[i].FinishedAt.Time).After(obj.Status.Results[j].FinishedAt.Time)
@@ -123,18 +131,51 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			support.Status.Phase = supportv1alpha1.ArgoSupportPhaseFailed
 			logger.Error(err, "Failed to get workflow executor")
 		}
+
+		logger.Info("finished the  workflow execution")
 	}
 	if support.Status.Phase == supportv1alpha1.ArgoSupportPhaseCompleted || support.Status.Phase == supportv1alpha1.ArgoSupportPhaseError {
 		support.Status.Count = 0
 		support.Status.ObservedGeneration = support.ObjectMeta.Generation
+	} else {
+		logger.Error(err, "Failed to get workflow executor")
+		return ctrl.Result{RequeueAfter: ReconcileRequeueOnValidationError}, nil
 	}
 
-	// Update support object in Kubernetes with latest status
-	if err := r.Status().Update(ctx, &support); err != nil {
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var obj supportv1alpha1.Support
+		err := r.Get(ctx, types.NamespacedName{
+			Name:      req.Name,
+			Namespace: req.Namespace,
+		}, &obj)
+		if err != nil {
+			return err
+		}
+		obj.Status = support.Status
+		return r.Status().Update(ctx, &obj)
+	})
+	if err != nil {
 		logger.Error(err, "Failed to update Support status to completed")
 		return ctrl.Result{}, err
 	}
-	// TODO(user): your logic here
+	err = retry.RetryOnConflict(retry.DefaultRetry, func() error {
+		var s supportv1alpha1.Support
+		err := r.Get(ctx, types.NamespacedName{
+			Name:      req.Name,
+			Namespace: req.Namespace,
+		}, &s)
+		if err != nil {
+			return err
+		}
+		s.Status = support.Status
+		return r.Status().Update(ctx, &s)
+	})
+
+	if err != nil {
+		logger.Error(err, "Failed to update Support status to completed")
+
+	}
+	logger.Info("reconciliation completed")
 	return ctrl.Result{}, nil
 }
 
@@ -153,7 +194,7 @@ func (r *SupportReconciler) getWfExecutor(ctx context.Context, wf *supportv1alph
 }
 
 func (r *SupportReconciler) handleFinalizer(ctx context.Context, ops *supportv1alpha1.Support) error {
-	// name of our custom finalizer
+	// name of our genstudio finalizer
 
 	// examine DeletionTimestamp to determine if object is under deletion
 	if ops.ObjectMeta.DeletionTimestamp.IsZero() {
@@ -184,6 +225,6 @@ func (r *SupportReconciler) handleFinalizer(ctx context.Context, ops *supportv1a
 // SetupWithManager sets up the controller with the Manager.
 func (r *SupportReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&supportv1alpha1.Support{}).
+		For(&supportv1alpha1.Support{}, builder.WithPredicates(predicate.GenerationChangedPredicate{})).
 		Complete(r)
 }

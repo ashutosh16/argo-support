@@ -15,12 +15,11 @@ var (
 )
 
 const (
-	ResourcesFinalizerName string = "resources-finalizer.argocd.argoproj.io"
-
 	// LabelKeyAppName is the label key to identify the authprovider
-	LabelKeyAppName      = "app.kubernetes.io/name"
-	LabelKeyAppNameValue = "argo-support"
-	FinalizerName        = "support.argoproj.extensions.io/finalizer"
+	LabelKeyAppName               = "app.kubernetes.io/name"
+	LabelKeyAppNameValue          = "argo-support"
+	FinalizerName                 = "support.argoproj.extensions.io/finalizer"
+	ArgoSupportGenAIAnnotationKey = "argosupport.argoproj.extensions.io/genai"
 )
 
 type ArgoSupportPhase string
@@ -52,7 +51,6 @@ type Workflow struct {
 	// +kubebuilder:validation:Optional
 	ConfigMapRef ConfigMapRef `json:"configMapRef"`
 	RetryLimit   int64        `json:"retryLimit,omitempty"`
-	Delay        int          `json:"delay,omitempty"`
 }
 
 type NamespacedObjectReference struct {

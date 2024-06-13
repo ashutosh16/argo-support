@@ -19,8 +19,15 @@ export const ResourceCards = (props: ResourceCardsProps) => {
                             <div className='row '>
                                 Name: {res?.name}
                             </div>
-                            <div className='row '>
+
+                                <div className='row' style={{ whiteSpace: 'pre-wrap', WebkitBoxOrient: 'vertical',WebkitLineClamp: 3 }}>
                                 Health Details: {res?.health?.message}
+                            </div>
+                            <div className='row' style={{ whiteSpace: 'pre-wrap', WebkitBoxOrient: 'vertical',WebkitLineClamp: 3 }}>
+                                Resource links:
+                            </div>
+                            <div className='row' style={{ whiteSpace: 'pre-wrap', WebkitBoxOrient: 'vertical',WebkitLineClamp: 3 }}>
+                                Events:
                             </div>
                             <div className='row '>
                                 status: {res?.health?.status}

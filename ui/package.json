@@ -14,7 +14,7 @@
     "json-loader": "^0.5.7",
     "axios": "^1.6.2",
     "recharts": "^2.9.0",
-
+    "react-moment": "^0.9.7",
     "null-loader": "^4.0.1",
     "react": "^16.9.3",
     "react-dom": "^16.9.3",
@@ -23,7 +23,8 @@
     "react-scripts": "4.0.3",
     "ts-loader": "^8.2.0",
     "typescript": "^4.9.5",
-    "web-vitals": "^1.0.1"
+    "web-vitals": "^1.0.1",
+    "json-merge-patch": "^0.2.3"
   },
   "peerDeependencies": {
     "argo-ui": "git+https://github.com/argoproj/argo-ui.git#5ff344ac9692c14dd108468bd3c020c3c75181cb",

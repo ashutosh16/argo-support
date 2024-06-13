@@ -30,8 +30,9 @@ type AuthProviderSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// SecretRef contains the credentials required to auth to a specific wf_executor
-	SecretRef *v1.LocalObjectReference `json:"secretRef,omitempty"`
-	Auth      *Auth                    `json:"auth,omitempty"`
+	SecretRef *v1.LocalObjectReference `json:"secretRef"`
+	Provider  *string                  `json:"provider,omitempty"`
+	Auth      *Auth                    `json:"auth"`
 }
 
 // AuthProviderStatus defines the observed state of AuthProvider

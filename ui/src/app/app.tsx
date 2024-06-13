@@ -16,10 +16,19 @@ export const Extension = (props: {
     return (
         <div className="application-status-panel__item">
             <div className="genai-container">
-                <div className="genai-image-container">
-                    <img className="genai-image" src="https://raw.githubusercontent.com/ashutosh16/argo-support/main/ui/genai.svg"
-                                 onClick={handleClick} alt="" />
+                <div className="genai-image-container" style={{ position: 'relative' }} onClick={handleClick}>
+                    <img className="genai-image" src="https://raw.githubusercontent.com/ashutosh16/argo-support/main/ui/src/images/genai.svg"/>
+                    <span style={{
+                        position: 'absolute',
+                        top: '50%',
+                        left: '50%',
+                        transform: 'translate(-50%, -50%)',
+                        color: '#1a1a1a',
+                        fontSize: '14px',
+                        fontWeight: 'bold'
+                    }}>GenAI</span>
                     <span className="genai-footer-notes">Click to start GenAI (Beta v0.1)</span> </div>  </div>
+
         </div>
     );
 

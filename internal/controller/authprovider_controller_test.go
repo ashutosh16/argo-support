@@ -43,7 +43,7 @@ var _ = Describe("AuthProvider Controller", func() {
 		authprovider := &argosupportv1alpha1.AuthProvider{}
 
 		BeforeEach(func() {
-			By("creating the custom resource for the Kind AuthProvider")
+			By("creating the genstudio resource for the Kind AuthProvider")
 			err := k8sClient.Get(ctx, typeNamespacedName, authprovider)
 			if err != nil && errors.IsNotFound(err) {
 				resource := &argosupportv1alpha1.AuthProvider{

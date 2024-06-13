@@ -12,5 +12,6 @@ spec:
     identityEndpoint: "https://identityinternal-e2e.api.intuit.com"
     identityJobID: "9341450931784620"
     apiVersion: "v2"
+  provider: genstudio
   secretRef:
     name: genai-secret

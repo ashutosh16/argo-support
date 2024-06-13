@@ -4,12 +4,15 @@
   align-items: center;
   margin: 10px;
   justify-content: flex-end;
-  flex-direction: row-reverse;
   position: relative;
 }
 
 .votes {
   display: flex;
+  margin-top: 5px;
+  flex-direction: row;
+  align-items: flex-start;
+  padding-bottom: 10px
 }
 
 .votes.disabled {

@@ -5,17 +5,78 @@ metadata:
 data:
   resource.customizations.actions.argoproj.io_Rollout: |
     discovery.lua: |
-       actions = {}
-       actions["create-genai"] = {}
+       local actions = {}
+       actions["create-genai"] = {["disabled"] = false}
+       actions["restart"] = {["disabled"] = false}
+       local paused = false
+       if obj.status ~= nil and obj.status.pauseConditions ~= nil then
+       paused = table.getn(obj.status.pauseConditions) > 0
+       elseif obj.spec.paused ~= nil then
+       paused = obj.spec.paused
+       end
+       actions["resume"] = {["disabled"] = not(paused)}
+        
+       local fullyPromoted = obj.status.currentPodHash == obj.status.stableRS
+       actions["abort"] = {["disabled"] = fullyPromoted or obj.status.abort}
+       actions["retry"] = {["disabled"] = fullyPromoted or not(obj.status.abort)}
+        
+       actions["promote-full"] = {["disabled"] = true}
+       if obj.status ~= nil and not(fullyPromoted) then
+       local generation = tonumber(obj.status.observedGeneration)
+       if generation == nil or generation > obj.metadata.generation then
+       -- rollouts v0.9 - full promotion only supported for canary
+       actions["promote-full"] = {["disabled"] = obj.spec.strategy.blueGreen ~= nil}
+       else
+       -- rollouts v0.10+
+       actions["promote-full"]["disabled"] = false
+       end
+       end
        return actions
     definitions:
+    - name: abort
+      action.lua: |
+        obj.status.abort = true
+        return obj
+    - name: promote-full
+      action.lua: |
+        if obj.status ~= nil then
+          local generation = tonumber(obj.status.observedGeneration)
+          if generation == nil or generation > obj.metadata.generation then
+            -- rollouts v0.9 and below
+            obj.status.abort = nil
+            if obj.spec.strategy.canary.steps ~= nil then
+              obj.status.currentStepIndex = table.getn(obj.spec.strategy.canary.steps)
+            end
+          else
+          -- rollouts v0.10+
+          obj.status.promoteFull = true
+          end
+        end
+        return obj
+    - name: restart
+      action.lua: |
+        local os = require("os")
+        obj.spec.restartAt = os.date("!%Y-%m-%dT%XZ")
+        return obj 
+    - name: resume
+      action.lua: |
+        if obj.status.pauseConditions ~= nil and table.getn(obj.status.pauseConditions) > 0 then
+          obj.status.pauseConditions = nil
+        end
+        if obj.spec.paused ~= nil and obj.spec.paused then
+          obj.spec.paused = false
+        end
+        return obj
+    - name: retry
+      action.lua: |
+        obj.status.abort = nil
+        return obj
     - name: create-genai
       action.lua: |
         local os = require("os")
         local genaiObj = {}
         local spec = {}
         local ownerRef = {}
-
         genaiObj.apiVersion = "argosupport.argoproj.extensions.io/v1alpha1"
         genaiObj.kind = "Support"
         genaiObj.metadata = {}
@@ -48,7 +109,7 @@ data:
         workflows.autProviderRef[1] = {}
         workflows.autProviderRef[1].name = "genai-authprovider"
         workflows.autProviderRef[2] = {}
-        workflows.autProviderRef[2].name = "argocd-auth-provider"
+        workflows.autProviderRef[2].name = "argocd-authprovider"
         spec.workflows = {}
         spec.workflows[1] = workflows
         genaiObj.spec = spec

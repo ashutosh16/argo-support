@@ -1,6 +1,6 @@
 const path = require('path');
 
-const extName = "unified-viewer";
+const extName = "genai-ext";
 
 const config = {
   entry: {

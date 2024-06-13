@@ -7,9 +7,13 @@ import (
 	"fmt"
 	"github.com/argoproj-labs/argo-support/api/v1alpha1"
 	"github.com/argoproj-labs/argo-support/internal/services/ai_provider"
+	"github.com/argoproj-labs/argo-support/internal/services/ai_provider/genstudio"
+
 	"github.com/argoproj-labs/argo-support/internal/utils"
 	"github.com/argoproj-labs/argo-support/internal/wf_operations"
+	"github.com/argoproj-labs/argo-support/internal/wf_operations/common"
 	rolloutv1alpha1 "github.com/argoproj/argo-rollouts/pkg/apis/rollouts/v1alpha1"
+	"github.com/go-logr/logr"
 	"io"
 	v1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -33,9 +37,9 @@ const (
 
 type GenAIOperator struct {
 	k8sClient     client.Client
-	genAIClient   ai_provider.HttpClient
+	genAIClient   ai_provider.AIProvider
 	dynamicClient dynamic.DynamicClient
-	argoCDClient  ai_provider.HttpClient
+	argoCDClient  *ai_provider.ArgoCDClient
 	kubeClient    kubernetes.Interface
 	configMap     *v1.ConfigMap
 }
@@ -44,52 +48,100 @@ var (
 	_ wf_operations.Executor = &GenAIOperator{}
 )
 
-// NewGenAIOperations create GenAIOperation with the k8s API
 func NewGenAIOperations(ctx context.Context, k8sClient client.Client, dynamicClient dynamic.DynamicClient, kubeClient kubernetes.Interface, wf *v1alpha1.Workflow, namespace string) (*GenAIOperator, error) {
-	//logger := log.FromContext(ctx)
-	authProviders, err := utils.GetAuthProviders(ctx, k8sClient, &wf.Ref, namespace)
+	authProviders, err := getAuthProviders(ctx, k8sClient, &wf.Ref, namespace)
+	var genClient ai_provider.AIProvider
+	var argoCDClient *ai_provider.ArgoCDClient
+
+	cm, err := getCMRef(ctx, k8sClient, &wf.ConfigMapRef, namespace)
 	if err != nil {
 		return nil, err
 	}
 
-	cm, err := utils.GetConfigMapRef(ctx, k8sClient, &wf.ConfigMapRef, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	genClient, err := ai_provider.GetGenAIClientWithSecret(ctx, k8sClient, authProviders, namespace)
-	if err != nil {
-		return nil, err
-	}
-
-	argoCDClient, err := ai_provider.GetArgoCDClienWithSecret(ctx, k8sClient, authProviders, namespace)
-	if err != nil {
-		return nil, err
+	for _, authProvider := range *authProviders {
+		if &authProvider != nil {
+			switch authProvider.Name {
+			case "genai-auth-provider":
+				genClient, err = getGenAIProvider(ctx, k8sClient, &authProvider, namespace)
+				if err != nil {
+					return nil, err
+				}
+			case "argocd-auth-provider":
+				argoCDClient, err = getArgoCDClient(ctx, k8sClient, &authProvider, namespace)
+				if err != nil {
+					return nil, err
+				}
+			}
+		}
 	}
 
 	return &GenAIOperator{
 		k8sClient:     k8sClient,
-		genAIClient:   *genClient,
-		argoCDClient:  *argoCDClient,
+		genAIClient:   genClient,
+		argoCDClient:  argoCDClient,
 		dynamicClient: dynamicClient,
 		kubeClient:    kubeClient,
 		configMap:     cm,
 	}, nil
 }
 
+func getAuthProviders(ctx context.Context, k8sClient client.Client, refs *[]v1alpha1.NamespacedObjectReference, namespace string) (*[]v1alpha1.AuthProvider, error) {
+	return utils.GetAuthProviders(ctx, k8sClient, refs, namespace)
+}
+
+func getCMRef(ctx context.Context, k8sClient client.Client, configMapRef *v1alpha1.ConfigMapRef, namespace string) (*v1.ConfigMap, error) {
+	return utils.GetConfigMapRef(ctx, k8sClient, configMapRef, namespace)
+}
+func getGenAIProvider(ctx context.Context, k8sClient client.Client, authProviders *v1alpha1.AuthProvider, namespace string) (ai_provider.AIProvider, error) {
+
+	switch *authProviders.Spec.Provider {
+	case "genstudio":
+		return genstudio.GenAIClientWithSecret(ctx, k8sClient, authProviders, namespace), nil
+	default:
+		return nil, fmt.Errorf("unsupported genai provider: %s", authProviders.Spec.Provider)
+	}
+}
+
+func getArgoCDClient(ctx context.Context, k8sClient client.Client, authProvider *v1alpha1.AuthProvider, namespace string) (*ai_provider.ArgoCDClient, error) {
+	return ai_provider.GetArgoCDClienWithSecret(ctx, k8sClient, authProvider, namespace)
+}
+
 func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alpha1.Support, error) {
 	logger := log.FromContext(ctx)
+	support := obj.(*v1alpha1.Support)
+	if support == nil {
+		return nil, fmt.Errorf("failed to process: recieved nil genai object")
+	}
+	var app *common.Application
+	var err error
+	if support != nil && support.Annotations[v1alpha1.ArgoSupportGenAIAnnotationKey] == "" {
+		support.Status.Phase = v1alpha1.ArgoSupportPhaseRunning
+		return support, nil
+	} else {
+		annotationValue := support.Annotations[v1alpha1.ArgoSupportGenAIAnnotationKey]
+		annotationValue = strings.ReplaceAll(annotationValue, "\n", "")
+		if annotationValue != "" {
+			err := json.Unmarshal([]byte(annotationValue), &app)
+			if err != nil {
+				return nil, fmt.Errorf("failed to unmarshal annotation: %v", err)
+			}
+		}
+	}
 
-	labels := obj.GetLabels()
-	fullUrl := fmt.Sprint(g.argoCDClient.BaseURL + argocdEndPointSuffix + labels["app.kubernetes.io/instance"])
+	if app == nil {
+		labels := obj.GetLabels()
+		fullUrl := fmt.Sprint(g.argoCDClient.BaseURL + argocdEndPointSuffix + labels["app.kubernetes.io/instance"])
 
-	app, err := g.argoCDClient.GetRequest(fullUrl, nil)
+		app, err = g.argoCDClient.GetArgoApp(fullUrl)
+		if err != nil {
+			logger.Error(err, "unable to connect to argocd instance", "argocd url", fullUrl)
+		}
+	}
 
 	t, _ := g.buildAITokens(ctx, app, obj)
 
-	//{\n          \"failures\": [\n            {\n              \"context\":  }\n    t      ]\n        }"
-	failures := ai_provider.Failures{
-		Failures: []ai_provider.Failure{
+	failures := common.Failures{
+		Failures: []common.Failure{
 			{Context: t},
 		},
 	}
@@ -98,7 +150,7 @@ func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alph
 	tokens, _ := json.Marshal(failures)
 	logger.Info("tokens to be processed", "tokens length", len(tokens))
 
-	res, err := g.genAIClient.PostRequest(ctx, string(tokens), genAIEndPointSuffix)
+	res, err := g.genAIClient.SubmitTokensToGenAI(ctx, string(tokens), genAIEndPointSuffix)
 	if err != nil {
 		return nil, fmt.Errorf("failed to post request: %v", err)
 	}
@@ -160,118 +212,135 @@ func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alph
 	return argoOpsobj, nil
 }
 
-func (g *GenAIOperator) buildAITokens(ctx context.Context, app *ai_provider.Application, o metav1.Object) (string, error) {
+func (g *GenAIOperator) buildAITokens(ctx context.Context, app *common.Application, o metav1.Object) (string, error) {
 	logger := log.FromContext(ctx)
-
 	var builder strings.Builder
-	builder.WriteString(utils.GetInlinePrompt("app-conditions", ""))
-	if app != nil {
-		builder.WriteString(utils.GetInlinePrompt("app-conditions", ""))
-		if len(app.Status.Conditions) > 0 {
-			for _, condition := range app.Status.Conditions {
-				builder.WriteString(fmt.Sprintf("Condition Message: %s, Status: %s, LastTransitionTime: %s\n", condition.Type, condition.Message, condition.LastTransitionTime))
-			}
-		}
-	}
+	builder.WriteString(utils.GetInlinePrompt("main_instructions", ""))
 
-	// argocd-cm.yaml. Fetch argo app data and analysis the health and app conditions and return the token
-	// 2. Fetch the rollout information and check the health
 	if app != nil {
-		for _, res := range app.Status.Resources {
-			if res.Health != nil && res.Health.Status != ai_provider.HealthStatusHealthy {
-				builder.WriteString(fmt.Sprintf("Resource Name: %s Resource Health: %s  and kubernetes Message: %s", res.Name, res.Health.Status, res.Health.Message))
-			}
-		}
+		g.processApplicationStatus(&builder, app, logger)
+	} else {
+		logger.Info("app info seems to be missing and should not be included in the analysis")
 	}
 
 	rolloutLister := rolloutListFromClient(g.dynamicClient)
 	res, err := rolloutLister(o.GetNamespace(), metav1.ListOptions{})
-
-	var podList []string
-	var aRuns []*rolloutv1alpha1.AnalysisRun
-
 	if err != nil {
 		return "", err
-	} else {
-		for _, r := range res {
-			builder.WriteString(utils.GetInlinePrompt("rollout", r.Name))
-			if r.Status.Phase != rolloutv1alpha1.RolloutPhaseHealthy {
-				if rollout, ok := utils.StripTheKeys(r).(*rolloutv1alpha1.Rollout); ok {
-					pods, _ := getPodsWithLabel(g.k8sClient, r.Status.CurrentPodHash)
-					podList = append(podList, pods...)
-					analysisLister := analysisListFromClient(g.dynamicClient)
-					aRuns, err = analysisLister(o.GetNamespace(), metav1.ListOptions{})
-					for i, ar := range aRuns {
-						if o.GetAnnotations()[rolloutRevision] == ar.Annotations[rolloutRevision] {
-							aRuns = append(aRuns[:i], aRuns[i+1:]...)
-						}
-					}
-					builder.WriteString(rollout.Status.String())
-				}
-			} else {
-				logger.Info("Rollout seems to be healthy and should not be included in the genai analysis")
-			}
-			if aRuns != nil && len(aRuns) > 1 {
-				builder.WriteString(utils.GetInlinePrompt("analysis-runs", ""))
-				// Check the latest revision
-				builder.WriteString(aRuns[0].Status.String())
-			}
-			if podList != nil && len(podList) >= 1 {
-				// it's okay to just check only one pod, since the error is common
-				logs, err := getLogsForPod(podList[0], r.Namespace, g.kubeClient)
-				if err != nil {
-					if strings.Contains(err.Error(), "no error found in logs") {
-						builder.WriteString(utils.GetInlinePrompt("no-pod-error-log", ""))
-					} else if strings.Contains(err.Error(), "could not") {
-						logger.Error(err, "failed to process the pod logs")
-					} else {
-						builder.WriteString(utils.GetInlinePrompt("pod", ""))
-						builder.WriteString(logs)
-					}
-				}
+	}
 
-			} else {
-				builder.WriteString(utils.GetInlinePrompt("no-pod-log", ""))
-			}
-			if podList != nil && len(podList) >= 1 {
-				podStatus, err := getPodStatus(podList[0], r.Namespace, g.kubeClient)
-				if err != nil {
-					logger.Error(err, "failed to process the pod status")
-				}
-				builder.WriteString(utils.GetInlinePrompt("podContainerStatus", ""))
-				for _, containerStatus := range podStatus.ContainerStatuses {
-					builder.WriteString(fmt.Sprintf("Container Name: %s,started: %b, State: %s, Ready: %t, Restart Count: %d\n",
-						containerStatus.Name, containerStatus.Started, containerStatus.State, containerStatus.Ready, containerStatus.RestartCount))
-				}
-				builder.WriteString(utils.GetInlinePrompt("podInitContainerStatus", ""))
-				for _, containerStatus := range podStatus.InitContainerStatuses {
-					builder.WriteString(fmt.Sprintf("Container Name: %s,started: %b, State: %s, Ready: %t, Restart Count: %d\n",
-						containerStatus.Name, containerStatus.Started, containerStatus.State, containerStatus.Ready, containerStatus.RestartCount))
-				}
-			}
+	for _, r := range res {
+		g.processRollout(&builder, r, o, logger)
+	}
 
+	g.collectEventData(ctx, &builder, o, logger)
+	builder.WriteString(utils.GetInlinePrompt("end_instructions", ""))
+
+	return builder.String(), nil
+}
+
+func (g *GenAIOperator) processApplicationStatus(builder *strings.Builder, app *common.Application, logger logr.Logger) {
+	if app.Status.Health.Status == common.HealthStatusHealthy && len(app.Status.Conditions) == 0 {
+		builder.WriteString(utils.GetInlinePrompt("app-healthy", ""))
+		return
+	}
+
+	builder.WriteString(utils.GetInlinePrompt("app-conditions", ""))
+	for _, condition := range app.Status.Conditions {
+		logger.Info("include app Conditions", "application name", app.Name)
+		builder.WriteString(fmt.Sprintf("Condition Message: %s, Status: %s, LastTransitionTime: %s\n", condition.Type, condition.Message, condition.LastTransitionTime))
+	}
+
+	for _, res := range app.Status.Resources {
+		builder.WriteString(utils.GetInlinePrompt("non-healthy-res", ""))
+		if res.Health != nil && res.Health.Status != common.HealthStatusHealthy {
+			builder.WriteString(fmt.Sprintf("Resource Name: %s Resource Health: %s  and kubernetes Message: %s", res.Name, res.Health.Status, res.Health.Message))
 		}
-		if len(res) > 1 {
-			builder.WriteString(utils.GetInlinePrompt("multi-rollout", ""))
+	}
+}
+
+func (g *GenAIOperator) processRollout(builder *strings.Builder, r *rolloutv1alpha1.Rollout, o metav1.Object, logger logr.Logger) {
+
+	builder.WriteString(utils.GetInlinePrompt("rollout", r.Name))
+	if rollout, ok := utils.StripTheKeys(r).(*rolloutv1alpha1.Rollout); ok {
+		pods, _ := getPodsWithLabel(g.k8sClient, r.Status.CurrentPodHash)
+		g.processPods(builder, pods, r.Namespace, logger)
+		g.processAnalysisRuns(builder, o, r, logger)
+		builder.WriteString(rollout.Status.String())
+	}
+}
+
+func (g *GenAIOperator) processPods(builder *strings.Builder, podList []string, namespace string, logger logr.Logger) {
+	if len(podList) == 0 {
+		builder.WriteString(utils.GetInlinePrompt("no-pod-log", ""))
+		return
+	}
+
+	logs, err := getLogsForPod(podList[0], namespace, g.kubeClient)
+	if err != nil {
+		logger.Info("no pod logs to process")
+	} else {
+		builder.WriteString(utils.GetInlinePrompt("logs-with-error", ""))
+		builder.WriteString(logs)
+	}
+
+	podStatus, err := getPodStatus(podList[0], namespace, g.kubeClient)
+	if err != nil {
+		logger.Info("no pod status to process")
+		return
+	}
+
+	builder.WriteString(utils.GetInlinePrompt("podContainerStatus", ""))
+	for _, containerStatus := range podStatus.ContainerStatuses {
+		builder.WriteString(fmt.Sprintf("Container Name: %s, started: %t, State: %s, Ready: %t, Restart Count: %d\n",
+			containerStatus.Name, containerStatus.Started, containerStatus.State, containerStatus.Ready, containerStatus.RestartCount))
+	}
+
+	builder.WriteString(utils.GetInlinePrompt("podInitContainerStatus", ""))
+	for _, containerStatus := range podStatus.InitContainerStatuses {
+		builder.WriteString(fmt.Sprintf("Container Name: %s, started: %t, State: %s, Ready: %t, Restart Count: %d\n",
+			containerStatus.Name, containerStatus.Started, containerStatus.State, containerStatus.Ready, containerStatus.RestartCount))
+	}
+}
+
+func (g *GenAIOperator) processAnalysisRuns(builder *strings.Builder, o metav1.Object, r *rolloutv1alpha1.Rollout, logger logr.Logger) {
+	analysisLister := analysisListFromClient(g.dynamicClient)
+	aRuns, err := analysisLister(o.GetNamespace(), metav1.ListOptions{})
+	if err != nil {
+		logger.Error(err, "failed to list analysis runs")
+		return
+	}
+
+	for i, ar := range aRuns {
+		if o.GetAnnotations()[rolloutRevision] != ar.Annotations[rolloutRevision] {
+			aRuns = append(aRuns[:i], aRuns[i+1:]...)
 		}
 	}
 
-	logger.Info("start collecting pod data")
-	var eventList v1.EventList
-	err = g.k8sClient.List(ctx, &eventList, client.InNamespace(o.GetNamespace()))
-
-	if err != nil {
-		logger.Error(err, "Failed to fetch events for namespace %s", o.GetNamespace())
+	if len(aRuns) > 0 {
+		builder.WriteString(utils.GetInlinePrompt("analysis-runs", ""))
+		builder.WriteString(aRuns[0].Status.String())
 	} else {
+		logger.Info("no analysisrun for given rollout", "rollout revision", o.GetAnnotations()[rolloutRevision])
+	}
+}
+
+func (g *GenAIOperator) collectEventData(ctx context.Context, builder *strings.Builder, o metav1.Object, logger logr.Logger) {
+	logger.Info("start collecting event data")
+	var eventList v1.EventList
+	err := g.k8sClient.List(ctx, &eventList, client.InNamespace(o.GetNamespace()))
+	if err != nil {
+		logger.Error(err, "np events to fetch for namespace %s", o.GetNamespace())
+		return
+	}
+	if len(eventList.Items) > 0 {
+		builder.WriteString(utils.GetInlinePrompt("events", ""))
 		for _, event := range eventList.Items {
 			if event.Message == "Warning" || strings.Contains(event.Message, "Failed") {
-				logger.Info("Failed or Warn Events Detected:", "Reason", event.Reason, "Message", event.Message)
 				builder.WriteString(event.String())
 			}
 		}
 	}
-
-	return builder.String(), nil
 }
 
 func genericListFromClient(c dynamic.DynamicClient, gvr schema.GroupVersionResource) func(string, metav1.ListOptions) ([]*unstructured.Unstructured, error) {
@@ -372,8 +441,7 @@ func getLogsForPod(podName, namespace string, kubeClient kubernetes.Interface) (
 			return strings.Join(lines[start:end], "\n"), nil
 		}
 	}
-
-	return "", fmt.Errorf("no error found in logs")
+	return "", nil
 }
 func getPodStatus(podName, namespace string, kubeClient kubernetes.Interface) (*v1.PodStatus, error) {
 	pod, err := kubeClient.CoreV1().Pods(namespace).Get(context.Background(), podName, metav1.GetOptions{})

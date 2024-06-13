@@ -52,6 +52,8 @@ spec:
                   identityJobID:
                     type: string
                 type: object
+              provider:
+                type: string
               secretRef:
                 description: SecretRef contains the credentials required to auth to
                   a specific wf_executor
@@ -64,6 +66,9 @@ spec:
                     type: string
                 type: object
                 x-kubernetes-map-type: atomic
+            required:
+            - auth
+            - secretRef
             type: object
           status:
             description: AuthProviderStatus defines the observed state of AuthProvider

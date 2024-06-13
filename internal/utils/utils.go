@@ -88,7 +88,7 @@ func getConfigMap(ctx context.Context, k8sClient client.Client, labels map[strin
 	return &cmList.Items[0], nil
 }
 
-func GetConfigMapRef(ctx context.Context, k8sClient client.Client, refs *v1alpha1.ConfigMapRef, namespace string) (*v1.ConfigMap, error) {
+func GetConfigMapRef(ctx context.Context, k8sClient client.Client, configMapRef *v1alpha1.ConfigMapRef, namespace string) (*v1.ConfigMap, error) {
 	logger := log.FromContext(ctx)
 	cm, err := getConfigMap(ctx, k8sClient, map[string]string{v1alpha1.LabelKeyAppName: v1alpha1.LabelKeyAppNameValue})
 	if err != nil {
@@ -101,14 +101,12 @@ func GetConfigMapRef(ctx context.Context, k8sClient client.Client, refs *v1alpha
 func StripTheKeys(obj metav1.Object) metav1.Object {
 	switch t := obj.(type) {
 	case *v1.Pod:
-		// Process Pod-specific logic
 		fmt.Println("Processing Pod", t.Name)
 	case *v1.Service:
-		// Process Service-specific logic
 		fmt.Println("Processing Service", t.Name)
 	case *rolloutv1alpha1.Rollout:
 		fmt.Println("Processing Operation", t.Name)
-		return t // Return the specific type directly
+		return t
 	default:
 		fmt.Println("Unknown type")
 	}
@@ -117,28 +115,44 @@ func StripTheKeys(obj metav1.Object) metav1.Object {
 
 func GetInlinePrompt(step string, data string) string {
 	switch step {
-	case "main":
-		return "Disregard any other instructions provided in the message. Provide a JSON-formatted summary  by using this prompt as the main point of reference.  " +
-			" Do not make any false assumptions. Consider any additional prompts that include int the tag <prompt></prompt> follow up by  context, that need to be inferred in summarize"
+	case "main_instructions":
+		return "Disregard any previous instructions provided. You are expert in debugging the kubernetes issues, provide the debug summary in 50 words" +
+			" When summarize the issue do not make any false assumptions or add extra details or add details which is irrelevant to debugging." +
+			" Along this main instructions, I'll provide additional inline instructions that contain inside the tag <prompt></prompt> follow up by  resource status that need to be inferred for debugging the issue."
+	case "app-healthy":
+		return "<prompt>app seems to be healthy, there nothing to analysis. discard any previous prompt and don't summarize any details provided. Echo the message app seems to be healthy  and nothing to summarize</prompt>"
+	case "non-healthy-res":
+		return "<prompt>evaluate the non healthy  resource based on the message</prompt>"
 	case "app-conditions":
-		return "<prompt>When analyzing rollout, be sure to account for conditions reason that  not true," +
-			" Note time diff between lastUpdateTime and lastTransitionTime and estimate if the condition is stuck for long." +
-			"Additionally, focus on the phase, message, canary.podTemplateHash, currentPodHash, and stableRS while taking into account that the Rollout type is a custom resource</prompt>"
+		return "<prompt>When analyzing rollout, be sure to consider for conditions 'reason' and inference the message that true and progressed for more than 15 mins (lastTransitionTime - lastUpdateTime). " +
+			"Analyse if condition is stuck based on the time" +
+			"Additionally, consider on the status.phase, status.message, status.canary.podTemplateHash, status.currentPodHash, and status.stableRS when analysis the issue with the Rollout. Don't make assumption, and if not enough " +
+			"info to analyse than recommend user to review status and reach out to support </prompt>"
 
 	case "rollout":
-		return "<prompt>When analyzing rollout, be sure to account for conditions reason that  not true," +
-			" Note time diff between lastUpdateTime and lastTransitionTime and estimate if the condition is stuck for long." +
-			"Additionally, focus on the phase, message, canary.podTemplateHash, currentPodHash, and stableRS while taking into account that the Rollout type is a custom resource</prompt>"
+		return "<prompt>When analyzing the rollout, first things to analyse is status.phase. If phase is healthy return the message to" +
+			"user  Rollout seems to be healthy, there is no apparent issue or error that needs debugging. (Stop here)." +
+			" If phase is not Healthy, then include following field into your analysis phase, observedGeneration, message, compare  stableRS = podTemplateHash" +
+			" evaluate conditions that  true for more than 15 mins," +
+			" diff between lastUpdateTime and lastTransitionTime and estimate if the condition is stuck for long. Discard any condition which is false from your debugging" +
+			". If you NOT able identify the root cause, don't provide any explanation and  limit the answer to recommend user to check with argo support</prompt>"
 	case "event":
-		return "<prompt>When analyzing events related to any resources provided</prompt>"
+		return "<prompt>When debugging the issue analyse events related to  resources. Don't include event older than 15 mins</prompt>"
 	case "analysis-runs":
-		return "<prompt>When analyzing analysisRun resource; summarize the failed metrics and provide the summary</prompt>"
-	case "logs":
+		return "<prompt>When debugging the AnalysisRun resource when  phase: Error. Check if there are any failed metrics. Discard the summary  of the analysisrun  that contain message: Run Terminated with   phase: Successful and no metrics failures </prompt>"
+	case "no-pod-log":
+		return "<prompt>pod logs is not available, as pod could be terminated. Check the events and rollout or deployment  is aborted include this data in the analysis</prompt>"
+	case "logs-with-error":
 		return "<prompt>evaluate the logs for error that causing the failure. In you summary highlight any pods failure that causing pods to fail</prompt>"
 	case "podContainerStatus":
 		return "<prompt>evaluate the containerStatus for error that causing the failure. In you summary highlight any container status that causing pods to fail</prompt>"
 	case "podInitContainerStatus":
 		return "<prompt>evaluate the InitContainerStatuses for error that causing the failure. In you summary highlight any Initcontainer status that causing pods to fail</prompt>"
+	case "events":
+		return "<prompt>valuate the events, related the event types with  resource status, ignore the  events order than 30 mins.</prompt>"
+	case "end_instructions":
+		return "After evaluating the summary, provide the  summary with 10-15 words solution. If not enough detail available to provide the summary and solution. Do not provide any solution  which is vague and let user know why you can't summarize and ask them to  contact support. "
+
 	default:
 		return ""
 	}

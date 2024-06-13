@@ -63,8 +63,6 @@ spec:
                       required:
                       - name
                       type: object
-                    delay:
-                      type: integer
                     initiatedAt:
                       format: date-time
                       type: string
@@ -124,8 +122,6 @@ spec:
                     message:
                       type: string
                     name:
-                      type: string
-                    phase:
                       type: string
                     startedAt:
                       format: date-time

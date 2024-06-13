@@ -7,3 +7,4 @@ metadata:
 data:
   help.slack: '#argo-support'
   help.stackoverflow: 'https://stackoverflow.intuit.com/search?q=argo'
+  genai-provider: "genstudio"

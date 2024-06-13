@@ -107,6 +107,11 @@ func (in *AuthProviderSpec) DeepCopyInto(out *AuthProviderSpec) {
 		*out = new(v1.LocalObjectReference)
 		**out = **in
 	}
+	if in.Provider != nil {
+		in, out := &in.Provider, &out.Provider
+		*out = new(string)
+		**out = **in
+	}
 	if in.Auth != nil {
 		in, out := &in.Auth, &out.Auth
 		*out = new(Auth)
