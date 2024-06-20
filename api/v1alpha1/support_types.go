@@ -45,10 +45,18 @@ type SupportStatus struct {
 	Phase              ArgoSupportPhase `json:"phase,omitempty"`
 }
 
+type Vote string
+
+const (
+	Up   Vote = "up"
+	Down Vote = "down"
+)
+
 type Feedback struct {
-	DownVote    bool   `json:"downVote,omitempty"`
-	FeedbackMsg string `json:"feedbackMsg,omitempty"`
-	UpVote      bool   `json:"upVote,omitempty"`
+	Name     string `json:"name,omitempty"`
+	Vote     Vote   `json:"vote,omitempty"`
+	Message  string `json:"message,omitempty"`
+	UserName string `json:"user,omitempty"`
 }
 
 type Help struct {
@@ -61,7 +69,7 @@ type Summary struct {
 }
 
 type Result struct {
-	Feedback   Feedback     `json:"feedback,omitempty"`
+	Feedback   *Feedback    `json:"feedback,omitempty"`
 	FinishedAt *metav1.Time `json:"finishedAt,omitempty"`
 	Help       Help         `json:"help,omitempty"`
 	Name       string       `json:"name,omitempty"`

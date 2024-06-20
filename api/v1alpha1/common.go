@@ -16,10 +16,11 @@ var (
 
 const (
 	// LabelKeyAppName is the label key to identify the authprovider
-	LabelKeyAppName               = "app.kubernetes.io/name"
-	LabelKeyAppNameValue          = "argo-support"
-	FinalizerName                 = "support.argoproj.extensions.io/finalizer"
-	ArgoSupportGenAIAnnotationKey = "argosupport.argoproj.extensions.io/genai"
+	LabelKeyAppName                    = "app.kubernetes.io/name"
+	LabelKeyAppNameValue               = "argo-support"
+	FinalizerName                      = "support.argoproj.extensions.io/finalizer"
+	ArgoSupportArgoAppAnnotationKey    = "argosupport.argoproj.extensions.io/argo-app"
+	ArgoSupportWFFeedbackAnnotationKey = "argosupport.argoproj.extensions.io/wf-feedback"
 )
 
 type ArgoSupportPhase string

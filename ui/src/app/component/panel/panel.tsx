@@ -23,7 +23,7 @@ const Label = ({ label }) => (
 
 export const Panel = ({ application, tree }: Props) => {
     const [activeKey, setActiveKey] = useState('genai-summary');
-    const [rolloutObj, setRolloutObj] = useState(null);
+    const [resNode, setResNode] = useState(null);
     const [isLoading, setIsLoading] = useState(true); // Added loading state
     const application_name = application?.metadata?.name || "";
     useEffect(() => {
@@ -39,7 +39,7 @@ export const Panel = ({ application, tree }: Props) => {
         fetch(url)
             .then(response => response.json())
             .then(data => {
-                setRolloutObj(typeof data.manifest === "string" ? JSON.parse(data.manifest) : data.manifest);
+                setResNode(typeof data.manifest === "string" ? JSON.parse(data.manifest) : data.manifest);
                 setIsLoading(false);
             })
             .catch(err => {
@@ -52,19 +52,19 @@ export const Panel = ({ application, tree }: Props) => {
     const RenderTabContent = useCallback(({ key }) => {
         switch (key) {
             case 'genai-summary':
-                return <Summary application={application} resource={rolloutObj} />;
+                return <Summary application={application} tree={tree}  resource={resNode} />;
             case 'rollout':
-                return <Rollouts application={application} resource={rolloutObj} tree={tree} IsDisplay={true}/>;
+                return <Rollouts application={application} resource={resNode} tree={tree} IsDisplay={true}/>;
             case 'metrics':
-                return <MetricsWrapper application={application} resource={rolloutObj} tree={tree} IsDisplay={true}/>;
+                return <MetricsWrapper application={application} resource={resNode} tree={tree} IsDisplay={true}/>;
             default:
                 return null;
         }
-    }, [application, rolloutObj, tree]);
+    }, [application, resNode, tree]);
 
     const tabItems = [
         {
-            label: <Label label='GenAI Summary' />,
+            label: <Label label='Intuit Assist' />,
             key: 'genai-summary',
             children: activeKey === 'genai-summary' ? RenderTabContent({ key: 'genai-summary' }) : null
         },

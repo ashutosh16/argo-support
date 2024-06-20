@@ -7,6 +7,6 @@ import (
 )
 
 type Executor interface {
-	// Process execute the specific workflow	GetWfOperator(ctx context.Context, obj metav1.Object) (*v1alpha1.ArgoAISupport, error)
-	Process(ctx context.Context, obj metav1.Object) (*v1alpha1.Support, error)
+	RunWorkflow(ctx context.Context, obj metav1.Object) (*v1alpha1.Support, error)
+	UpdateWorkflow(ctx context.Context, obj metav1.Object) (*v1alpha1.Support, *v1alpha1.Feedback, error)
 }

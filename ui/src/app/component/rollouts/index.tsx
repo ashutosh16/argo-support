@@ -3,7 +3,6 @@ import {RolloutWidget} from 'argo-rollouts/ui/src/app/components/rollout/rollout
 import {ObjectMeta, TypeMeta} from 'argo-rollouts/ui/src/models/kubernetes';
 import {RolloutAnalysisRunInfo, RolloutReplicaSetInfo, RolloutRolloutInfo} from 'argo-rollouts/ui/src/models/rollout/generated';
 import { default as axios } from 'axios';
-import './dark.css'
 
 export type State = TypeMeta & {metadata: ObjectMeta} & {
     status: any;
@@ -261,3 +260,4 @@ export const Rollouts = (props: {application: any; tree: ApplicationResourceTree
     const ro = parseInfoFromResourceNode(props.application, props.tree, props.resource);
     return props.IsDisplay? <RolloutWidget rollout={ro} />:<>"Multiple rollout is not supported yet";</>
 };
+

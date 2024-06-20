@@ -1,18 +1,12 @@
 
 .feedback {
-  display: flex;
-  align-items: center;
-  margin: 10px;
-  justify-content: flex-end;
-  position: relative;
+  padding-left: 20px;
+  padding-top: 50px;
+  margin-bottom: auto;
 }
 
 .votes {
-  display: flex;
-  margin-top: 5px;
-  flex-direction: row;
-  align-items: flex-start;
-  padding-bottom: 10px
+  padding-bottom: 5px
 }
 
 .votes.disabled {
@@ -23,7 +17,7 @@
 .upvote,
 .downvote {
   border: none;
-  font-size: 20px;
+  font-size: 14px;
   cursor: pointer;
   margin-right: 10px;
   color: black;

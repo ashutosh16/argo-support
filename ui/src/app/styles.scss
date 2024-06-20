@@ -1,14 +1,7 @@
 .genai-container {
   display: flex;
   flex-direction: column;
-  align-items: center;
-  padding: 20px;
-  position: absolute;
-}
-
-.genai-content {
-  margin-bottom: 10px;
-  font-size: 12px;
+  position: relative;
 }
 
 .genai-image-container {
@@ -40,8 +33,10 @@
 .genai-footer-notes {
   font-size: 10px;
   display: block;
-  margin-top: 5px;
-  position: absolute;
-  top: 55px;
-  width: 100px;
+  width: max-content;
+}
+.panel {
+  .theme-light .sliding-panel__body {
+    background-color: white;
+  }
 }

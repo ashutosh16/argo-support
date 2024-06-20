@@ -116,11 +116,16 @@ func StripTheKeys(obj metav1.Object) metav1.Object {
 func GetInlinePrompt(step string, data string) string {
 	switch step {
 	case "main_instructions":
-		return "Disregard any previous instructions provided. You are expert in debugging the kubernetes issues, provide the debug summary in 50 words" +
-			" When summarize the issue do not make any false assumptions or add extra details or add details which is irrelevant to debugging." +
-			" Along this main instructions, I'll provide additional inline instructions that contain inside the tag <prompt></prompt> follow up by  resource status that need to be inferred for debugging the issue."
+		return "Disregard any previous instructions provided. You are expert in debugging the kubernetes issues, " +
+			"Follow this instruction provide the debug summary in points. In summary highlight the field  from yaml which might cause the issue" +
+			" don't add point which is not provided in resource." +
+			" When analysis the issue do not make any  assumptions or add extra details or add details which is irrelevant to debugging." +
+			" Along this main instructions, I'll provide additional inline instructions that contain inside the tag " +
+			"<prompt></prompt> follow up by  resource spec and status that need to be inferred for debugging the issue."
 	case "app-healthy":
 		return "<prompt>app seems to be healthy, there nothing to analysis. discard any previous prompt and don't summarize any details provided. Echo the message app seems to be healthy  and nothing to summarize</prompt>"
+	case "app-unhealthy":
+		return "<prompt>app seems to be not healthy, check app statue</prompt>"
 	case "non-healthy-res":
 		return "<prompt>evaluate the non healthy  resource based on the message</prompt>"
 	case "app-conditions":
@@ -150,8 +155,6 @@ func GetInlinePrompt(step string, data string) string {
 		return "<prompt>evaluate the InitContainerStatuses for error that causing the failure. In you summary highlight any Initcontainer status that causing pods to fail</prompt>"
 	case "events":
 		return "<prompt>valuate the events, related the event types with  resource status, ignore the  events order than 30 mins.</prompt>"
-	case "end_instructions":
-		return "After evaluating the summary, provide the  summary with 10-15 words solution. If not enough detail available to provide the summary and solution. Do not provide any solution  which is vague and let user know why you can't summarize and ask them to  contact support. "
 
 	default:
 		return ""

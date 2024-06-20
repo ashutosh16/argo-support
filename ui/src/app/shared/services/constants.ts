@@ -14,7 +14,8 @@ export const APIs = {
         `/api/v1/applications/${appName}/resource/actions?appNamespace=${appNamespace}&namespace=${destNamespace}&resourceName=${resourceName}&version=${API_VERSION}&kind=${ROLLOUT_KIND}&group=${ROLLOUT_GROUP}`,
     updateGenAIAction: (appName: string, appNamespace: string, destNamespace: string, resourceName: string): string =>
         `/api/v1/applications/${appName}/resource/actions?appNamespace=${appNamespace}&namespace=${destNamespace}&resourceName=${GenAI}&version=${API_VERSION}&kind=${SUPPORT_KIND}&group=${SUPPORT_GROUP}`,
-    fetchUserInfo: (): string => `/api/v1/session/userinfo`
+    getUserInfo: (): string => `/api/v1/session/userinfo`,
+    getEvents: (appName: string, appNamespace: string, destNamespace: string, resourceName: string, resID: string): string => `/api/v1/applications/${appName}/events?appNamespace=${appNamespace}&resourceUID=${resID}&resourceNamespace=${destNamespace}&resourceName=${resourceName}`,
 };
 
 export const PHASE_RUNNING = "running";

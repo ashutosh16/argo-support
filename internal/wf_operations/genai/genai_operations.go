@@ -106,39 +106,39 @@ func getArgoCDClient(ctx context.Context, k8sClient client.Client, authProvider 
 	return ai_provider.GetArgoCDClienWithSecret(ctx, k8sClient, authProvider, namespace)
 }
 
-func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alpha1.Support, error) {
+func (g *GenAIOperator) RunWorkflow(ctx context.Context, obj metav1.Object) (*v1alpha1.Support, error) {
 	logger := log.FromContext(ctx)
 	support := obj.(*v1alpha1.Support)
 	if support == nil {
 		return nil, fmt.Errorf("failed to process: recieved nil genai object")
 	}
-	var app *common.Application
+	var appStatus *common.ApplicationStatus
 	var err error
-	if support != nil && support.Annotations[v1alpha1.ArgoSupportGenAIAnnotationKey] == "" {
+	if support != nil && support.Annotations[v1alpha1.ArgoSupportArgoAppAnnotationKey] == "" {
 		support.Status.Phase = v1alpha1.ArgoSupportPhaseRunning
 		return support, nil
 	} else {
-		annotationValue := support.Annotations[v1alpha1.ArgoSupportGenAIAnnotationKey]
+		annotationValue := support.Annotations[v1alpha1.ArgoSupportArgoAppAnnotationKey]
 		annotationValue = strings.ReplaceAll(annotationValue, "\n", "")
 		if annotationValue != "" {
-			err := json.Unmarshal([]byte(annotationValue), &app)
+			err := json.Unmarshal([]byte(annotationValue), &appStatus)
 			if err != nil {
 				return nil, fmt.Errorf("failed to unmarshal annotation: %v", err)
 			}
 		}
 	}
 
-	if app == nil {
+	if appStatus == nil {
 		labels := obj.GetLabels()
 		fullUrl := fmt.Sprint(g.argoCDClient.BaseURL + argocdEndPointSuffix + labels["app.kubernetes.io/instance"])
 
-		app, err = g.argoCDClient.GetArgoApp(fullUrl)
+		_, err = g.argoCDClient.GetArgoApp(fullUrl)
 		if err != nil {
 			logger.Error(err, "unable to connect to argocd instance", "argocd url", fullUrl)
 		}
 	}
 
-	t, _ := g.buildAITokens(ctx, app, obj)
+	t, _ := g.buildAITokens(ctx, appStatus, obj)
 
 	failures := common.Failures{
 		Failures: []common.Failure{
@@ -184,22 +184,22 @@ func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alph
 		break
 	}
 
-	argoOpsobj, ok := obj.(*v1alpha1.Support)
 	if !ok {
 		return nil, fmt.Errorf("type assertion to *v1alpha1.ArgoSupportSpec failed")
 	}
-	var slackSupport string
-	slackSupport, _ = g.configMap.Data["slackSupport"]
+	slackSupport, _ := g.configMap.Data["help.slack"]
+	stackOverflow, _ := g.configMap.Data["help.stackoverflow"]
 
 	help := v1alpha1.Help{
 		SlackChannel: slackSupport,
+		Links:        []string{stackOverflow},
 	}
 	now := metav1.Now()
 	epochTime := now.Unix()
 
-	argoOpsobj.Status = v1alpha1.SupportStatus{
-		Results: append(argoOpsobj.Status.Results, v1alpha1.Result{
-			Name: fmt.Sprintf("%s-%d", argoOpsobj.Spec.Workflows[0].Name, epochTime),
+	support.Status = v1alpha1.SupportStatus{
+		Results: append(support.Status.Results, v1alpha1.Result{
+			Name: fmt.Sprintf("%s-%d", support.Spec.Workflows[0].Name, epochTime),
 			Summary: v1alpha1.Summary{
 				MainSummary: genSummary,
 			},
@@ -209,16 +209,44 @@ func (g *GenAIOperator) Process(ctx context.Context, obj metav1.Object) (*v1alph
 		}),
 		Phase: v1alpha1.ArgoSupportPhaseCompleted,
 	}
-	return argoOpsobj, nil
+	return support, nil
 }
 
-func (g *GenAIOperator) buildAITokens(ctx context.Context, app *common.Application, o metav1.Object) (string, error) {
+func (g *GenAIOperator) UpdateWorkflow(ctx context.Context, obj metav1.Object) (*v1alpha1.Support, *v1alpha1.Feedback, error) {
+	logger := log.FromContext(ctx)
+	support := obj.(*v1alpha1.Support)
+	if support == nil {
+		return nil, nil, fmt.Errorf("failed to process: recieved nil genai object")
+	}
+
+	a := support.Annotations[v1alpha1.ArgoSupportWFFeedbackAnnotationKey]
+	var feedback v1alpha1.Feedback
+	err := json.Unmarshal([]byte(a), &feedback)
+	if err != nil {
+		logger.Error(err, "failed to unmarshal annotation", "annotation", v1alpha1.ArgoSupportWFFeedbackAnnotationKey)
+		return nil, nil, fmt.Errorf("failed to unmarshal annotation: %v", err)
+	}
+	var result *v1alpha1.Result
+	for _, r := range support.Status.Results {
+		if r.Name == feedback.Name {
+			r.Feedback = &feedback
+			result = &r
+		}
+	}
+
+	if result == nil {
+		return nil, nil, fmt.Errorf("feedback not found for the given name")
+	}
+	return support, &feedback, nil
+}
+
+func (g *GenAIOperator) buildAITokens(ctx context.Context, appStatus *common.ApplicationStatus, o metav1.Object) (string, error) {
 	logger := log.FromContext(ctx)
 	var builder strings.Builder
 	builder.WriteString(utils.GetInlinePrompt("main_instructions", ""))
 
-	if app != nil {
-		g.processApplicationStatus(&builder, app, logger)
+	if appStatus != nil {
+		g.processApplicationStatus(&builder, appStatus, logger)
 	} else {
 		logger.Info("app info seems to be missing and should not be included in the analysis")
 	}
@@ -234,24 +262,24 @@ func (g *GenAIOperator) buildAITokens(ctx context.Context, app *common.Applicati
 	}
 
 	g.collectEventData(ctx, &builder, o, logger)
-	builder.WriteString(utils.GetInlinePrompt("end_instructions", ""))
-
 	return builder.String(), nil
 }
 
-func (g *GenAIOperator) processApplicationStatus(builder *strings.Builder, app *common.Application, logger logr.Logger) {
-	if app.Status.Health.Status == common.HealthStatusHealthy && len(app.Status.Conditions) == 0 {
+func (g *GenAIOperator) processApplicationStatus(builder *strings.Builder, appStatus *common.ApplicationStatus, logger logr.Logger) {
+	if appStatus.Health.Status == common.HealthStatusHealthy && len(appStatus.Conditions) == 0 {
 		builder.WriteString(utils.GetInlinePrompt("app-healthy", ""))
 		return
+	} else {
+		builder.WriteString(utils.GetInlinePrompt("app-unhealthy", ""))
+		builder.WriteString(fmt.Sprintf("%s", appStatus.Health.Status))
 	}
 
 	builder.WriteString(utils.GetInlinePrompt("app-conditions", ""))
-	for _, condition := range app.Status.Conditions {
-		logger.Info("include app Conditions", "application name", app.Name)
+	for _, condition := range appStatus.Conditions {
 		builder.WriteString(fmt.Sprintf("Condition Message: %s, Status: %s, LastTransitionTime: %s\n", condition.Type, condition.Message, condition.LastTransitionTime))
 	}
 
-	for _, res := range app.Status.Resources {
+	for _, res := range appStatus.Resources {
 		builder.WriteString(utils.GetInlinePrompt("non-healthy-res", ""))
 		if res.Health != nil && res.Health.Status != common.HealthStatusHealthy {
 			builder.WriteString(fmt.Sprintf("Resource Name: %s Resource Health: %s  and kubernetes Message: %s", res.Name, res.Health.Status, res.Health.Message))
@@ -266,6 +294,7 @@ func (g *GenAIOperator) processRollout(builder *strings.Builder, r *rolloutv1alp
 		pods, _ := getPodsWithLabel(g.k8sClient, r.Status.CurrentPodHash)
 		g.processPods(builder, pods, r.Namespace, logger)
 		g.processAnalysisRuns(builder, o, r, logger)
+		builder.WriteString(rollout.Spec.String())
 		builder.WriteString(rollout.Status.String())
 	}
 }
@@ -312,7 +341,7 @@ func (g *GenAIOperator) processAnalysisRuns(builder *strings.Builder, o metav1.O
 	}
 
 	for i, ar := range aRuns {
-		if o.GetAnnotations()[rolloutRevision] != ar.Annotations[rolloutRevision] {
+		if o.GetAnnotations()[rolloutRevision] == ar.Annotations[rolloutRevision] {
 			aRuns = append(aRuns[:i], aRuns[i+1:]...)
 		}
 	}
