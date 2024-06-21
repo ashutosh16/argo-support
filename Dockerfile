@@ -1,37 +1,80 @@
-# Build the manager binary
-FROM golang:1.21 AS builder
-ARG TARGETOS
-ARG TARGETARCH
+FROM docker.intuit.com/docker-rmt/golang:1.22.4-alpine3.19 as build
 
-WORKDIR /workspace
-# Copy the Go Modules manifests
+ARG GITHUB_INTUIT_TOKEN
+ARG GIT_COMMIT
+ARG VERSION
+
+# The following ARG and 2 LABEL are used by Jenkinsfile command
+# to identify this intermediate container, for extraction of
+# code coverage and other reported values.
+ARG build
+LABEL build=${build}
+LABEL image=build
+
+ENV GOPRIVATE=github.intuit.com
+ENV LAST_MILE_PATH=data-curation/go/v0.7.16/lastmile
+ENV UTILS_PATH=data-curation/go/v0.7.16/intuit
+ENV GOLINTER_VERSION=v1.58.1
+
+RUN apk add --no-cache git curl make bash
+
+WORKDIR /go/src/github.intuit.com/dev-build/ibp-genai-service
+
+# allow go to pull depencenies from github.intuit.com trough the GITHUB_INTUIT_TOKEN enviroment variable
+RUN git config --global --add url."https://${GITHUB_INTUIT_TOKEN}@github.intuit.com".insteadOf "https://github.intuit.com"
 COPY go.mod go.mod
 COPY go.sum go.sum
-# cache deps before building and copying source so that we don't need to re-download as much
-# and so that source changes don't invalidate our downloaded layer
-RUN go mod download
 
-# Copy the go source
-COPY cmd/main.go cmd/main.go
-COPY api/ api/
-COPY internal/ internal/
+# by downloading dependencies before adding source code, the download can be cached for subsequent runs
+RUN go mod download
+RUN curl -sSL https://${GITHUB_INTUIT_TOKEN}@github.intuit.com/raw/${LAST_MILE_PATH}/ppd.pem -o ppd.pem
+RUN curl -sSL https://${GITHUB_INTUIT_TOKEN}@github.intuit.com/raw/${LAST_MILE_PATH}/prd.pem -o prd.pem
+RUN curl -sSL https://${GITHUB_INTUIT_TOKEN}@github.intuit.com/raw/${UTILS_PATH}/utils.sh -o utils.sh
+RUN curl -sSL https://raw.githubusercontent.com/golangci/golangci-lint/master/install.sh | sh -s -- -b $(go env GOPATH)/bin ${GOLINTER_VERSION}
+COPY ./ /go/src/github.intuit.com/dev-build/ibp-genai-service
+
+# Lint
+RUN golangci-lint run --timeout 10m
 
 # Build
-# the GOARCH has not a default value to allow the binary be built according to the host where the command
-# was called. For example, if we call make docker-build in a local env which has the Apple Silicon M1 SO
-# the docker BUILDPLATFORM arg will be linux/arm64 when for Apple x86 it will be linux/amd64. Therefore,
-# by leaving it empty we can ensure that the container and binary shipped on it will have the same platform.
-RUN CGO_ENABLED=0 GOOS=${TARGETOS:-linux} GOARCH=${TARGETARCH} go build -a -o manager cmd/main.go
+RUN CGO_ENABLED=0 go build -ldflags "-X main.Version=$VERSION -X main.SHA=$GIT_COMMIT" -o main cmd/ibp-genai-service/main.go
 
-# Use distroless as minimal base image to package the manager binary
-# Refer to https://github.com/GoogleContainerTools/distroless for more details
-#FROM gcr.io/distroless/static:nonroot #TODO: figure out smallest/safest way to get git installed
-FROM golang:1.21
-WORKDIR /
-RUN mkdir /git
-COPY --from=builder /workspace/manager .
-ENV PATH="${PATH}:/git"
-RUN echo "${PATH}" >> /etc/bash.bashrc
-USER 65532:65532
+# this entry point is only used when running tests, see the Makefile for usage
+RUN make test
 
-ENTRYPOINT ["/manager"]
+
+# ---------------------------
+FROM docker.intuit.com/docker-rmt/alpine:3.19.1
+ARG GIT_COMMIT
+ARG DOCKER_TAGS=latest
+# ARG JIRA_PROJECT=https://jira.intuit.com/projects/<CHANGE_ME>
+
+# Required
+ARG DOCKER_IMAGE_NAME=docker.intuit.com/dev-build/ibp-genai-service/service/ibp-genai-service:${DOCKER_TAGS}
+ARG SERVICE_LINK=https://devportal.intuit.com/app/dp/resource/1732777549890492173
+
+# Required
+LABEL maintainer=some_email@intuit.com \
+      app=ibp-genai-service \
+      app-scope=runtime
+
+USER root
+
+# Create the appuser and appuser group
+RUN addgroup -S appuser && adduser -D -G appuser appuser
+
+# Install jq and openssl
+RUN apk add --no-cache jq openssl bash
+
+COPY entrypoint.sh /home/appuser/entrypoint.sh
+RUN chmod +x /home/appuser/entrypoint.sh
+
+USER appuser
+WORKDIR /home/appuser
+
+COPY --from=build /go/src/github.intuit.com/dev-build/ibp-genai-service/filtered_coverage.out /coverage.out
+COPY --from=build /go/src/github.intuit.com/dev-build/ibp-genai-service/main /home/appuser/main
+COPY --from=build /go/src/github.intuit.com/dev-build/ibp-genai-service/*.pem /home/appuser/lastmile/
+COPY --from=build /go/src/github.intuit.com/dev-build/ibp-genai-service/utils.sh /home/appuser/utils.sh
+
+ENTRYPOINT ["/home/appuser/entrypoint.sh"]

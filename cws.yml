@@ -1,0 +1,20 @@
+# To cusomize this file, please visit https://devportal.intuit.com/app/dp/capability/1337/capabilityDocs/cloud-workspace-docs/docs/cwsAlpha/workspace-customization.md
+image: docker.intuit.com/cloud-workspaces/cloud-workspace-images/service/golang:latest-debian
+
+tasks:
+  - name: Golang K8s
+    init: sh -x .cws/init.sh
+    command: sh -x .cws/start.sh
+
+# Add additional repositories as below
+# additionalRepositories:
+#   - url: https://github.intuit.com/sample-org-1/sample-repo-1
+#     checkoutLocation: cws-cli-dir
+#   - url: https://github.intuit.com/sample-org-2/sample-repo-2
+
+# VSCode is installed into your CWS by default. To opt out of JetBrains product, please comment out the follow secion.
+jetbrains:
+  goland:
+    vmoptions:
+    prebuilds:
+      version: 2023.3.4

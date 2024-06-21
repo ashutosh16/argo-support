@@ -1,114 +1,151 @@
-# argo-support
-// TODO(user): Add simple overview of use/purpose
+# ibp-genai-service
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+[![Build Status](https://build.intuit.com/devx-shared//buildStatus/buildIcon?job=dev-build/ibp-genai-service/ibp-genai-service/master)](https://build.intuit.com/devx-shared//job/dev-build/job/ibp-genai-service/job/ibp-genai-service/job/master/)
+[![Code Coverage](https://codecov.tools.a.intuit.com/ghe/dev-build/ibp-genai-service/branch/master/graph/badge.svg)](https://codecov.tools.a.intuit.com/ghe/dev-build/ibp-genai-service)
+[![SSDLC Badge][ssdlc-image]][ssdlc-url]
 
-## Getting Started
+[ssdlc-image]: https://badge.ssdlc.a.intuit.com/ssdlc/coverage/1732777549890492173
+[ssdlc-url]: https://devportal.intuit.com/app/dp/resource/1732777549890492173/security/security
 
-### Prerequisites
-- go version v1.21.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+DevPortal Asset
+------
+https://devportal.intuit.com/app/dp/resource/1732777549890492173/configuration/environment
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+# Go && `github.intuit.com`
 
-```sh
-make docker-build docker-push IMG=<some-registry>/argo-support:tag
+To use Go with `github.intuit.com`, you need to follow these steps to configure a `github.intuit.com` token.
+
+- Generate a new github token here: https://github.intuit.com/settings/tokens/new?scopes=repo
+- Assign your token as an environment variable: `export GITHUB_INTUIT_TOKEN=INSERT_TOKEN_HERE`
+- Use this command to update your `~/.gitconfig` file to use the token to authenticate to github.intuit.com
+    - `git config --global --add url."https://${GITHUB_INTUIT_TOKEN}@github.intuit.com".insteadOf "https://github.intuit.com"`
+- Add this to your `~/.bash_profile` file
+    - `export GOPRIVATE=github.intuit.com`
+
+# Local Development
+
+## Prerequisites
+
+- Install Go: `brew install go`
+- Install golangci-lint: `brew install golangci-lint`
+
+## Configuring your environment
+
+### Run the service against PreProd (E2E)
+
+The services requires the following environment variables to be set in order to run against PreProd (E2E):
+* It will use the PreProd (E2E) IDPS endpoint to retrieve the [Identity App Secret](https://devportal.intuit.com/app/dp/resource/1732777549890492173/credentials/secrets)
+* It will use the PreProd (E2E) Identity endpoint to retrieve the Authentication Header required to consume the 
+PreProd (E2E) Express endpoint using the PreProd (E2E) [Offline JobID](https://devportal.intuit.com/app/dp/resource/1732777549890492173/credentials/offlineJob)
+* It will submit GenAI request to the PreProd (E2E) Express endpoint
+
+```
+### PreProd (QAL and E2E)
+# Express Endpoint
+export APP_EXPRESS_ENDPOINT="https://genpluginregistry-e2e.api.intuit.com/v1/llmexpress"
+
+# Identity configuration
+export APP_IDENTITY_ENDPOINT="https://identityinternal-e2e.api.intuit.com/v1/graphql"
+export APP_IDENTITY_JOB_ID="9341450931784620"
+
+# IDPS configuration (to retrieve Identity App Secret)
+export APP_IDPS_ENDPOINT="vkm-e2e.ps.idps.a.intuit.com"
+export APP_IDPS_POLICY="p-iqv3508ask8u"
+export APP_IDPS_FOLDER="ibpjenkins/e2e"
+
+# Splunk configuration
+export APP_SPLUNK_HOSTNAME="hec-us-west-2.e2e.cmn.cto.a.intuit.com"
+export APP_SPLUNK_TOKEN=[see below]
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+The PreProd (E2E) `APP_IDPS_POLICY` above is a policy created by the IBP team for local development.
+It is defined [here](https://devportal.intuit.com/app/dp/resource/8073845825132550131/addons/idps/manager).
 
-**Install the CRDs into the cluster:**
+> Note: Please reach out to the IBP team to get the APP_SPLUNK_TOKEN value.
 
-```sh
-make install
+### Run the service against Production
+
+The services requires the following environment variables to be set in order to run against production:
+* It will use the production IDPS endpoint to retrieve the [Identity App Secret](https://devportal.intuit.com/app/dp/resource/1732777549890492173/credentials/secrets)
+* It will use the production Identity endpoint to retrieve the Authentication Header required to consume the
+  production Express endpoint using the production [Offline JobID](https://devportal.intuit.com/app/dp/resource/1732777549890492173/credentials/offlineJob)
+* It will submit GenAI request to the production Express endpoint
+
+```
+### Prod (STG and PROD)
+# Express Endpoint
+export APP_EXPRESS_ENDPOINT="https://genpluginregistry.api.intuit.com/v1/llmexpress"
+
+# Identity configuration
+export APP_IDENTITY_ENDPOINT="https://identityinternal.api.intuit.com/v1/graphql"
+export APP_IDENTITY_JOB_ID="9341451835093753"
+
+# IDPS configuration (to retrieve Identity App Secret)
+export APP_IDPS_ENDPOINT="vkm.ps.idps.a.intuit.com"
+export APP_IDPS_POLICY="p-rzc0yhkrbj3x"
+export APP_IDPS_FOLDER="ibpjenkins/prod"
+
+# Splunk configuration
+export APP_SPLUNK_HOSTNAME="hec-us-west-2.e2e.cmn.cto.a.intuit.com"
+export APP_SPLUNK_TOKEN=[see below]
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+The production `APP_IDPS_POLICY` above is a policy created by the IBP team for local development.
+It is defined [here](https://devportal.intuit.com/app/dp/resource/8073845825132550131/addons/idps/manager).
 
-```sh
-make deploy IMG=<some-registry>/argo-support:tag
+> Note: Please reach out to the IBP team to get the APP_SPLUNK_TOKEN value.
+
+## Enabling IDPS
+
+### For PreProd (E2E)
+
+IDPS relies on `eiamCli` to be installed and configured. In order for IDPS to work, you need to execute the following command:
+```
+eiamCli login
+eiamCli aws_creds -a 6367-6488-2764 -r PowerUser -p tep-300-poweruser
+export AWS_PROFILE=tep-300-poweruser
 ```
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+### For Production
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
-
-```sh
-kubectl apply -k config/samples/
+IDPS relies on `eiamCli` to be installed and configured. In order for IDPS to work, you need to execute the following command:
+```
+eiamCli login
+eiamCli aws_creds -a 7335-3620-4770 -r PowerUser -p ibp-100-poweruser
+export AWS_PROFILE=ibp-100-poweruser
 ```
 
->**NOTE**: Ensure that the samples has default values to test it out.
+# Usage
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+## Running the service locally
 
-```sh
-kubectl delete -k config/samples/
+- Run `make` or `make run` to run the service locally
+- This will run the server in the development configuration on port `:8080`
+- You can check the service is running by executing `curl localhost:8080/health/full`
+
+You can test the log analyzer by running:
+```
+curl -v \
+    -X POST \
+    -H "Content-Type: application/json" \
+    -d '{
+          "failures": [
+            {
+              "context": "docker push .\ninvalid reference format"
+            }
+          ]
+        }' \
+http://localhost:8080/v2/analyze
 ```
 
-**Delete the APIs(CRDs) from the cluster:**
+## Running the tests locally
 
-```sh
-make uninstall
-```
+- Run `make test` to run the tests locally
 
-**UnDeploy the controller from the cluster:**
+# Contributing
 
-```sh
-make undeploy
-```
+Please check the [CONTRIBUTING.md](CONTRIBUTING.md) file for more information on how to contribute to this project.
 
-## Project Distribution
+# Support
 
-Following are the steps to build the installer and distribute this project to users.
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/argo-support:tag
-```
-
-NOTE: The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without
-its dependencies.
-
-2. Using the installer
-
-Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/argo-support/<tag or branch>/dist/install.yaml
-```
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
-
-## License
-
-Copyright 2024.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+Please reach out to the IBP team on the [#ibp-community](https://intuit.enterprise.slack.com/archives/C9YFBNJBV) Slack channel for any support.

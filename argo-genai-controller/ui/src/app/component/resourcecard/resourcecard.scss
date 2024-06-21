@@ -1,0 +1,15 @@
+.resource {
+   &__item-value {
+   text-wrap: initial;
+   width: max-content;
+   display: flex;
+   flex-direction: column;
+   padding: 10px;
+   }
+}
+
+.events-column {
+   display: flex;
+   flex-direction: column;
+   gap: 10px; /* Adjust the gap as needed */
+}

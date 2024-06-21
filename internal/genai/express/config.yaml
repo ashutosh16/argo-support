@@ -1,0 +1,9 @@
+package: express
+generate:
+  echo-server: false
+  client: true
+  models: true
+  embedded-spec: true
+output: internal/genai/express/express.gen.go
+output-options:
+  skip-prune: true

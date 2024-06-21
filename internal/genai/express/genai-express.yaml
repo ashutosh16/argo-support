@@ -1,0 +1,396 @@
+openapi: 3.0.2
+info:
+  title: GenOS Plugin Registry
+  version: 0.1.0
+  contact:
+      email: team_ps@intuit.com
+servers:
+  - url: https://genpluginregistry-e2e.api.intuit.com/v1/llmexpress
+  - url: https://genpluginregistry.api.intuit.com/v1/llmexpress
+tags:
+  - name: Express Mode
+    description: Access all LLMs
+    externalDocs:
+      description: Find out more
+      url: https://docs.google.com/document/d/1NyVcxRj996O0Rfb7t7tgLigshBCkY0ulykTAZQTTCdI/edit#heading=h.qdvwz560w9rb
+paths:
+  "/chat/completion":
+    post:
+      tags:
+        - Express Mode
+      summary: Chat completion, Best for chatbot experience
+      description: Chat completion, Best for chatbot experience. Allowed models are gpt-3.5-turbo, gpt-4, gpt-4-32k, gpt-35-turbo-v0301, gpt-35-turbo-16k, chat-bison, codechat-bison, chat-film
+      operationId: chat_completion
+      parameters:
+        - in: query
+          name: experience_id
+          required: false
+          schema:
+            type: string
+          description: experience_id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ExpressModeRequestMessage"
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ExpressModeResponse"
+        '404':
+          description: Validation Error - Invalid model name
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/404ExpressModeResponse"
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+  "/text/generation":
+    post:
+      tags:
+        - Express Mode
+      summary: Text generation, Best for OpenAI Playground completion mode experience
+      description: Text generation, Best for OpenAI Playground completion mode experience. Allowed models are text-davinci-003, text-curie-001, text-ada-001, text-bison, anthropic.claude-v1, anthropic.claude-instant-v1, anthropic.claude-v2, anthropic.claude-v2-100k, anthropic.claude-instant-v1-100k
+      operationId: text_generation
+      parameters:
+        - in: query
+          name: experience_id
+          required: false
+          schema:
+            type: string
+          description: experience_id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ExpressModeRequestPrompt"
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ExpressModeResponse"
+        '404':
+          description: Validation Error - Invalid model name
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/404ExpressModeResponse"
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+  "/code/generation":
+    post:
+      tags:
+        - Express Mode
+      summary: Code generation
+      description: Code generation. Allowed models are code-bison, code-gecko, anthropic.claude-v1, anthropic.claude-instant-v1, anthropic.claude-v2, anthropic.claude-v2-100k, anthropic.claude-instant-v1-100k
+      operationId: code_generation
+      parameters:
+        - in: query
+          name: experience_id
+          required: false
+          schema:
+            type: string
+          description: experience_id
+      requestBody:
+        content:
+          application/json:
+            schema:
+              "$ref": "#/components/schemas/ExpressModeRequestPrompt"
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ExpressModeResponse"
+        '404':
+          description: Validation Error - Invalid model name
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/404ExpressModeResponse"
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/HTTPValidationError"
+components:
+  schemas:
+    HTTPValidationError:
+      title: HTTPValidationError
+      type: object
+      properties:
+        detail:
+          title: Detail
+          type: array
+          items:
+            "$ref": "#/components/schemas/ValidationError"
+    DisplayRendererType:
+      title: DisplayRendererType
+      type: object
+      properties:
+        type:
+          type: string
+          example: FRF|TEXT|MARKDOWN|DEVX_JSON_MARKDOWN
+        version:
+          type: string
+          example: 1.0|2.1
+    ExpressModeRequestMessage:
+      title: ExpressModeRequestMessage
+      required:
+        - llm_params
+      type: object
+      properties:
+        conversation_id:
+          title: Conversation Id
+          type: string
+        llm_params:
+          "$ref": "#/components/schemas/LLMParamsMessage"
+    ExpressModeRequestPrompt:
+      title: ExpressModeRequestPrompt
+      required:
+        - llm_params
+      type: object
+      properties:
+        conversation_id:
+          title: Conversation Id
+          type: string
+        llm_params:
+          "$ref": "#/components/schemas/LLMParamsPrompt"
+    ExpressModeResponse:
+      title: ExpressModeResponse
+      required:
+        - orchestration_context_id
+        - resolved_tools
+        - tool_outputs
+        - answer
+        - result_status_code
+      type: object
+      properties:
+        orchestration_context_id:
+          title: Orchestration Context id
+          type: string
+        resolved_tools:
+          title: Resolved tools (irrelevant for ExpressMode)
+          type: array
+          items:
+            type: string
+            example: []
+        tool_outputs:
+          title: Tool Outputs (irrelevant for ExpressMode)
+          type: array
+          items:
+            type: string
+            example: []
+        answer:
+          "$ref": "#/components/schemas/SuccessAnswerInExpressMode"
+        conversation_id:
+          title: Conversation Id
+          type: string
+        result_status_code:
+          title: Status code
+          type: integer
+    404ExpressModeResponse:
+      title: ExpressModeResponse
+      required:
+        - orchestration_context_id
+        - resolved_tools
+        - tool_outputs
+        - answer
+        - result_status_code
+      type: object
+      properties:
+        orchestration_context_id:
+          title: Orchestration Context id
+          type: string
+        resolved_tools:
+          title: Resolved tools (irrelevant for ExpressMode)
+          type: array
+          items:
+            type: string
+            example: [ ]
+        tool_outputs:
+          title: Tool Outputs (irrelevant for ExpressMode)
+          type: array
+          items:
+            type: string
+            example: [ ]
+        answer:
+          "$ref": "#/components/schemas/404AnswerInExpressMode"
+        conversation_id:
+          title: Conversation Id
+          type: string
+        result_status_code:
+          title: Status code
+          type: integer
+    LLMParamsMessage:
+      required:
+        - llm_configuration
+        - messages
+      type: object
+      properties:
+        messages:
+          type: array
+          items:
+            $ref: '#/components/schemas/Message'
+        llm_configuration:
+          "$ref": "#/components/schemas/LLMConfiguration"
+    LLMParamsPrompt:
+      required:
+        - llm_configuration
+        - prompt
+      type: object
+      properties:
+        prompt:
+          type: string
+        llm_configuration:
+          "$ref": "#/components/schemas/LLMConfiguration"
+    LLMConfiguration:
+      required:
+        - model
+      type: object
+      properties:
+        model:
+          type: string
+        temperature:
+          type: number
+          format: double
+        max_tokens:
+          type: integer
+        version:  
+          type: string
+        top_p:
+          type: number
+          format: double
+        top_k:
+          type: number
+          format: double
+        stop_sequences:
+          type: array
+          items:
+            type: string
+        examples:
+          type: array
+          items:
+            type: string
+        context:
+          type: string
+        n:
+          type: integer
+    Message:
+      type: object
+      properties:
+        role:
+          type: string
+        content:
+          type: string
+    ResponseDelivery:
+      title: ResponseDelivery
+      required:
+      - url
+      type: object
+      properties:
+        url:
+          title: Url
+          type: string
+    ValidationError:
+      title: ValidationError
+      required:
+      - loc
+      - msg
+      - type
+      type: object
+      properties:
+        loc:
+          title: Location
+          type: array
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+        msg:
+          title: Message
+          type: string
+        type:
+          title: Error Type
+          type: string
+    SuccessAnswerInExpressMode:
+      required:
+        - id
+        - timestamp
+        - content
+        - role
+        - metadata
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: integer
+          format: int64
+        content:
+          type: string
+        role:
+          type: string
+        metadata:
+          type: object
+          properties:
+            plain_text:
+              type: string
+            llm_metadata:
+              type: string
+        conversation_id:
+          type: string
+        result_status_code:
+          type: integer
+          example: 200
+    404AnswerInExpressMode:
+      required:
+        - id
+        - timestamp
+        - content
+        - role
+        - metadata
+      type: object
+      properties:
+        id:
+          type: string
+        timestamp:
+          type: integer
+          format: int64
+        content:
+          type: string
+          example: "Model Name incorrectly passed or Model Name not passed"
+        role:
+          type: string
+        metadata:
+          type: object
+          properties:
+            plain_text:
+              type: string
+            llm_metadata:
+              type: string
+        conversation_id:
+          type: string
+        result_status_code:
+          type: integer
+          example: 404
+
+

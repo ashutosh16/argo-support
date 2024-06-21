@@ -1,0 +1,43 @@
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dev-build-ibp-genai-service-golang-k8s
+  annotations:
+    iam.amazonaws.com/role: "${JENKINS_SLAVE_IAM_ROLE}"
+spec:
+  containers:
+  - name: podman
+    image: docker.intuit.com/oicp/standard/podman:latest
+    tty: true
+    command: ["cat"]
+    imagePullPolicy: Always
+    volumeMounts:
+    - name: container-storage
+      mountPath: /var/lib/containers
+    resources:
+      limits:
+        github.com/fuse: 1
+    securityContext:
+      capabilities:
+        add: ["SYS_ADMIN", "SYS_RESOURCE"]
+  - name: cpd2
+    image: docker.intuit.com/oicp/standard/cpd2:1
+    tty: true
+    command: ["cat"]
+    imagePullPolicy: Always
+  - name: cdtools
+    image: docker.intuit.com/dev/deploy/cd/argocd-utils:stable
+    tty: true
+    command: ["cat"]
+    imagePullPolicy: Always
+    securityContext:
+      runAsUser: 1000
+      runAsGroup: 1000
+  - name: servicenow
+    image: docker.intuit.com/coe/servicenow-cr-agent/service/servicenow-cr-agent:latest
+    tty: true
+    command: ["cat"]
+    imagePullPolicy: Always
+  volumes:
+  - name: container-storage
+    emptyDir: {}

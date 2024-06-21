@@ -1,0 +1,44 @@
+l1: platformexps
+l2: tools
+git_org: dev-build
+#
+
+service_name: ibp-genai-service
+asset_id: 1732777549890492173
+asset_alias: Intuit.dev.build.ibpgenaiservice
+code_repo: github.intuit.com/dev-build/ibp-genai-service.git
+deploy_repo: github.intuit.com/dev-build/ibp-genai-service-deployment.git
+argocd_server: prod-cto.argocd.paas-cplane-prod-west2.a.intuit.com:443
+argocd_project: dev-build-ibp-genai-service
+argocd_project_enabled: true
+#
+
+registry: docker.intuit.com
+repo: dev-build/ibp-genai-service/service
+## change this to false once ready for PRD
+preprodOnly: false
+## change this to true for enable Code Analysis stage
+SonarQubeAnalysis: false
+## change this to true for stop your pipeline in quality gate error
+SonarQubeEnforce: false
+## change this to true for enabling Jira stories to be transitioned
+enableJiraTransition: false
+## enable this to true once test suite has matured in confidence to help automate deployments
+enableScorecardReadinessCheck: false
+## to bypass the scorecard readiness check's fall back, gitOpsApproval, set this to true
+skipScorecardManualFallback: false
+environments:
+  qal-usw2-eks:
+    ingress_endpoint: https://platformexps-qal-ibp-genai-service.ippaasppdusw2.iks2.a.intuit.com
+    cluster: https://eksapi-ip-paas-ppd-usw2-k8s-4b2287f4b1224d2a.elb.us-west-2.amazonaws.com
+    namespace: dev-build-ibpgenaiservice-usw2-qal
+    region: usw2
+    iks_type: ppd
+    manifest_format: Kustomize
+  e2e-usw2-eks:
+    ingress_endpoint: https://platformexps-e2e-ibp-genai-service.ippaasppdusw2.iks2.a.intuit.com
+    cluster: https://eksapi-ip-paas-ppd-usw2-k8s-4b2287f4b1224d2a.elb.us-west-2.amazonaws.com
+    namespace: dev-build-ibpgenaiservice-usw2-e2e
+    region: usw2
+    iks_type: ppd
+    manifest_format: Kustomize
