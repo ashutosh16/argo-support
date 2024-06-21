@@ -7,6 +7,6 @@ import (
 )
 
 type Executor interface {
-	RunWorkflow(ctx context.Context, obj metav1.Object) (*v1alpha1.Support, error)
-	UpdateWorkflow(ctx context.Context, obj metav1.Object) (*v1alpha1.Support, *v1alpha1.Feedback, error)
+	RunWorkflow(ctx context.Context, obj metav1.Object) error
+	UpdateWorkflow(ctx context.Context, obj metav1.Object) (*v1alpha1.Feedback, error)
 }

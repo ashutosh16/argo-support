@@ -106,24 +106,24 @@ func getArgoCDClient(ctx context.Context, k8sClient client.Client, authProvider 
 	return ai_provider.GetArgoCDClienWithSecret(ctx, k8sClient, authProvider, namespace)
 }
 
-func (g *GenAIOperator) RunWorkflow(ctx context.Context, obj metav1.Object) (*v1alpha1.Support, error) {
+func (g *GenAIOperator) RunWorkflow(ctx context.Context, obj metav1.Object) error {
 	logger := log.FromContext(ctx)
 	support := obj.(*v1alpha1.Support)
 	if support == nil {
-		return nil, fmt.Errorf("failed to process: recieved nil genai object")
+		return fmt.Errorf("failed to process: recieved nil genai object")
 	}
 	var appStatus *common.ApplicationStatus
 	var err error
 	if support != nil && support.Annotations[v1alpha1.ArgoSupportArgoAppAnnotationKey] == "" {
 		support.Status.Phase = v1alpha1.ArgoSupportPhaseRunning
-		return support, nil
+		return nil
 	} else {
 		annotationValue := support.Annotations[v1alpha1.ArgoSupportArgoAppAnnotationKey]
 		annotationValue = strings.ReplaceAll(annotationValue, "\n", "")
 		if annotationValue != "" {
 			err := json.Unmarshal([]byte(annotationValue), &appStatus)
 			if err != nil {
-				return nil, fmt.Errorf("failed to unmarshal annotation: %v", err)
+				return fmt.Errorf("failed to unmarshal annotation: %v", err)
 			}
 		}
 	}
@@ -152,22 +152,22 @@ func (g *GenAIOperator) RunWorkflow(ctx context.Context, obj metav1.Object) (*v1
 
 	res, err := g.genAIClient.SubmitTokensToGenAI(ctx, string(tokens), genAIEndPointSuffix)
 	if err != nil {
-		return nil, fmt.Errorf("failed to post request: %v", err)
+		return fmt.Errorf("failed to post request: %v", err)
 	}
 
 	summary, ok := res.(map[string]interface{})
 	if !ok {
-		return nil, fmt.Errorf("type assertion to map[string]interface{} failed")
+		return fmt.Errorf("type assertion to map[string]interface{} failed")
 	}
 
 	value, exists := summary["analyses"]
 	if !exists {
-		return nil, fmt.Errorf("key 'analyses' not found in the result")
+		return fmt.Errorf("key 'analyses' not found in the result")
 	}
 
 	analysesSlice, ok := value.([]interface{})
 	if !ok {
-		return nil, fmt.Errorf("type assertion for 'analyses' as []interface{} failed")
+		return fmt.Errorf("type assertion for 'analyses' as []interface{} failed")
 	}
 
 	// Assuming that each element in analysesSlice is a map[string]interface{} that contains an "analysis" key
@@ -175,17 +175,17 @@ func (g *GenAIOperator) RunWorkflow(ctx context.Context, obj metav1.Object) (*v1
 	for _, analysis := range analysesSlice {
 		analysisMap, ok := analysis.(map[string]interface{})
 		if !ok {
-			return nil, fmt.Errorf("type assertion for individual analysis failed")
+			return fmt.Errorf("type assertion for individual analysis failed")
 		}
 		genSummary, ok = analysisMap["analysis"].(string)
 		if !ok {
-			return nil, fmt.Errorf("type assertion for 'analysis' as string failed")
+			return fmt.Errorf("type assertion for 'analysis' as string failed")
 		}
 		break
 	}
 
 	if !ok {
-		return nil, fmt.Errorf("type assertion to *v1alpha1.ArgoSupportSpec failed")
+		return fmt.Errorf("type assertion to *v1alpha1.ArgoSupportSpec failed")
 	}
 	slackSupport, _ := g.configMap.Data["help.slack"]
 	stackOverflow, _ := g.configMap.Data["help.stackoverflow"]
@@ -209,14 +209,14 @@ func (g *GenAIOperator) RunWorkflow(ctx context.Context, obj metav1.Object) (*v1
 		}),
 		Phase: v1alpha1.ArgoSupportPhaseCompleted,
 	}
-	return support, nil
+	return nil
 }
 
-func (g *GenAIOperator) UpdateWorkflow(ctx context.Context, obj metav1.Object) (*v1alpha1.Support, *v1alpha1.Feedback, error) {
+func (g *GenAIOperator) UpdateWorkflow(ctx context.Context, obj metav1.Object) (*v1alpha1.Feedback, error) {
 	logger := log.FromContext(ctx)
 	support := obj.(*v1alpha1.Support)
 	if support == nil {
-		return nil, nil, fmt.Errorf("failed to process: recieved nil genai object")
+		return nil, fmt.Errorf("failed to process: recieved nil genai object")
 	}
 
 	a := support.Annotations[v1alpha1.ArgoSupportWFFeedbackAnnotationKey]
@@ -224,7 +224,7 @@ func (g *GenAIOperator) UpdateWorkflow(ctx context.Context, obj metav1.Object) (
 	err := json.Unmarshal([]byte(a), &feedback)
 	if err != nil {
 		logger.Error(err, "failed to unmarshal annotation", "annotation", v1alpha1.ArgoSupportWFFeedbackAnnotationKey)
-		return nil, nil, fmt.Errorf("failed to unmarshal annotation: %v", err)
+		return nil, fmt.Errorf("failed to unmarshal annotation: %v", err)
 	}
 	var result *v1alpha1.Result
 	for _, r := range support.Status.Results {
@@ -235,9 +235,11 @@ func (g *GenAIOperator) UpdateWorkflow(ctx context.Context, obj metav1.Object) (
 	}
 
 	if result == nil {
-		return nil, nil, fmt.Errorf("feedback not found for the given name")
+		return nil, fmt.Errorf("feedback not found for the given name")
 	}
-	return support, &feedback, nil
+	support.Annotations[v1alpha1.ArgoSupportWFFeedbackAnnotationKey] = ""
+
+	return &feedback, nil
 }
 
 func (g *GenAIOperator) buildAITokens(ctx context.Context, appStatus *common.ApplicationStatus, o metav1.Object) (string, error) {

@@ -26,20 +26,20 @@ pipeline {
         }
         fixed {
             emailext(
-                    subject: "Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' ${currentBuild.result}",
-                    body: """
+                subject: "Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' ${currentBuild.result}",
+                body: """
                         Job Status for '${env.JOB_NAME} [${env.BUILD_NUMBER}]': ${currentBuild.result}\n\nCheck console output at ${env.BUILD_URL}
                 """,
-                    to: 'some_email@intuit.com'
+                to: 'some_email@intuit.com'
             )
         }
         unsuccessful {
             emailext(
-                    subject: "Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' ${currentBuild.result}",
-                    body: """
+                subject: "Job '${env.JOB_NAME} [${env.BUILD_NUMBER}]' ${currentBuild.result}",
+                body: """
                         Job Status for '${env.JOB_NAME} [${env.BUILD_NUMBER}]': ${currentBuild.result}\n\nCheck console output at ${env.BUILD_URL}
                 """,
-                    to: 'some_email@intuit.com'
+                to: 'some_email@intuit.com'
             )
         }
     }
@@ -48,8 +48,7 @@ pipeline {
         stage('PRE-BUILD:') {
             when {
                 anyOf {
-                    branch 'argocd'
-                    buildingTag()
+                    branch 'master'
                     changeRequest()
                 }
             }
@@ -60,8 +59,7 @@ pipeline {
         stage('BUILD:') {
             when {
                 anyOf {
-                    branch 'argocd'
-                    buildingTag()
+                    branch 'master'
                     changeRequest()
                 }
             }
@@ -70,20 +68,11 @@ pipeline {
                     steps {
                         container('podman') {
                             withProdReadOnlyGitCredentials(config) {
-                                script {
-                                    // Get version from tag, default to empty string if not building from tag
-                                    def version = env.TAG_NAME ?: ''
-
-                                    // Build the image
-                                    podmanBuild("--build-arg=VERSION=${version} --rm=false -t ${config.image_full_name} .")
-
-                                    // Extract the code coverage report from the container
-                                    sh label: 'podman create', script: "podman create --name coverage ${config.image_full_name}"
-                                    sh label: 'podman cp', script: "podman cp coverage:/coverage.out coverage.out"
-
-                                    // Publish the image
-                                    podmanPush(config)
-                                }
+                                podmanBuild("--rm=false --target=build -t ${config.image_full_name}_test .")
+                                podmanRun("${config.image_full_name}_test", "--name=${config.git_org}_${config.service_name}_unit_test_${env.BUILD_NUMBER}")
+                                sh label: 'docker cp', script: "podman cp ${config.git_org}_${config.service_name}_unit_test_${env.BUILD_NUMBER}:/go/src/github.intuit.com/${config.git_org}/${config.service_name}/coverage.out coverage.out"
+                                podmanBuild("--rm=false -t ${config.image_full_name} .")
+                                podmanPush(config)
                             }
                         }
                     }
@@ -110,15 +99,15 @@ pipeline {
                             }
                         }
                         stage('Code Analysis') {
-                            when { expression { return config.SonarQubeAnalysis } }
+                            when {expression {return config.SonarQubeAnalysis}}
                             steps {
                                 container('podman') {
                                     script {
                                         // copy from container bundle for sonar analysis
                                         String image = podmanFindImage([image: 'build', build: env.BUILD_URL])
-                                        podmanMount(image, { steps, mount ->
-                                            steps.sh(label: 'copy outputs to workspace', script: "cp -r ${mount}/usr/src ${env.WORKSPACE}/bundle")
-                                        })
+                                        podmanMount(image, {steps,mount ->
+                                                steps.sh(label: 'copy outputs to workspace', script: "cp -r ${mount}/usr/src ${env.WORKSPACE}/bundle")
+                                            })
                                         podmanBuild("-f Dockerfile.sonar --build-arg=\"sonar=${config.SonarQubeEnforce}\" .")
                                     }
                                 }
@@ -128,9 +117,8 @@ pipeline {
                             when {
                                 beforeOptions true
                                 allOf {
-                                    branch 'argocd'
-                                    buildingTag()
-                                    not { changeRequest() }
+                                    branch 'master'
+                                    not {changeRequest()}
                                 }
                             }
                             steps {
@@ -145,9 +133,9 @@ pipeline {
                 stage('Transition Jira Tickets') {
                     steps {
                         script {
-                            if (env.BRANCH_NAME != 'argocd' && changeRequest()) {
+                            if (env.BRANCH_NAME != 'master' && changeRequest()) {
                                 transitionJiraTickets(config, 'Ready for Review')
-                            } else if (env.BRANCH_NAME == 'argocd') {
+                            } else if (env.BRANCH_NAME == 'master') {
                                 transitionJiraTickets(config, 'Closed')
                             }
                         }
@@ -155,6 +143,77 @@ pipeline {
                 }
             }
         }
-
+        stage('qal-usw2-eks') {
+            when {
+                beforeOptions true
+                allOf {
+                    branch 'master'
+                    not {changeRequest()}
+                }
+            }
+            options {
+                lock(resource: getEnv(config, 'qal-usw2-eks').namespace, inversePrecedence: true)
+                timeout(time: 32, unit: 'MINUTES')
+            }
+            stages {
+                stage('Scorecard Check') {
+                    when {expression {return config.enableScorecardReadinessCheck}}
+                    steps {
+                        scorecardPreprodReadiness(config, 'qal-usw2-eks')
+                    }
+                }
+                stage('Deploy') {
+                    steps {
+                        container('cdtools') {
+                            // This has to be the first action in the first sub-stage
+                            milestone(ordinal: 10, label: 'Deploy-qal-usw2-eks-milestone')
+                            gitOpsDeploy(config, 'qal-usw2-eks', config.image_full_name)
+                        }
+                    }
+                }
+                stage('Transition Jira Tickets') {
+                    when {expression {return config.enableJiraTransition}}
+                    steps {
+                        transitionJiraTickets(config, 'Deployed to PreProd')
+                    }
+                }
+            }
+        }
+        stage('e2e-usw2-eks') {
+            when {
+                beforeOptions true
+                allOf {
+                    branch 'master'
+                    not {changeRequest()}
+                }
+            }
+            options {
+                lock(resource: getEnv(config, 'e2e-usw2-eks').namespace, inversePrecedence: true)
+                timeout(time: 32, unit: 'MINUTES')
+            }
+            stages {
+                stage('Scorecard Check') {
+                    when {expression {return config.enableScorecardReadinessCheck}}
+                    steps {
+                        scorecardPreprodReadiness(config, 'e2e-usw2-eks')
+                    }
+                }
+                stage('Deploy') {
+                    steps {
+                        container('cdtools') {
+                            // This has to be the first action in the first sub-stage
+                            milestone(ordinal: 20, label: 'Deploy-e2e-usw2-eks-milestone')
+                            gitOpsDeploy(config, 'e2e-usw2-eks', config.image_full_name)
+                        }
+                    }
+                }
+                stage('Transition Jira Tickets') {
+                    when {expression {return config.enableJiraTransition}}
+                    steps {
+                        transitionJiraTickets(config, 'Deployed to PreProd')
+                    }
+                }
+            }
+        }
     }
 }

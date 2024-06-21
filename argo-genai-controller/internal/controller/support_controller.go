@@ -109,14 +109,13 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if err != nil {
 			return err
 		}
-		now := metav1.Now()
-		obj.Status.LastTransitionTime = &now
-		obj.Status.Phase = v1alpha1.ArgoSupportPhaseRunning
-		obj.Status.Count++
-		return r.Status().Update(ctx, &obj)
-	})
 
-	originalCopy := support.DeepCopy()
+		now := metav1.Now()
+		support.Status.LastTransitionTime = &now
+		support.Status.Count++
+		support.Status.Phase = v1alpha1.ArgoSupportPhaseRunning
+		return r.Status().Update(ctx, &support)
+	})
 
 	for _, wf := range support.Spec.Workflows {
 
@@ -126,29 +125,26 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		}
 
 		wfExecutor, err := r.getWfExecutor(ctx, &wf, &support)
-		var obj *v1alpha1.Support
+		var originalCopy = support.DeepCopy()
 
 		if wfExecutor != nil {
 
 			if &support != nil && support.Annotations[v1alpha1.ArgoSupportWFFeedbackAnnotationKey] != "" {
 				var f *v1alpha1.Feedback
-				obj, f, err = wfExecutor.UpdateWorkflow(ctx, &support)
+				f, err = wfExecutor.UpdateWorkflow(ctx, &support)
 				if f != nil {
 					logger.Info("feedback collect:", "workflow name", wf.Name, "feedback", &f)
-					for _, result := range obj.Status.Results {
+					for _, result := range support.Status.Results {
 						if result.Name == f.Name {
 							result.Feedback = f
 						}
 					}
 				}
-				if obj != nil {
-					obj.Annotations[v1alpha1.ArgoSupportWFFeedbackAnnotationKey] = ""
-					r.Patch(ctx, obj, client.MergeFrom(originalCopy))
-				}
+				r.Patch(ctx, &support, client.MergeFrom(originalCopy))
 				continue
 			} else {
 
-				obj, err = wfExecutor.RunWorkflow(ctx, &support)
+				err = wfExecutor.RunWorkflow(ctx, &support)
 			}
 			if err != nil {
 				logger.Error(err, "Failed to process workflow "+wf.Name)
@@ -158,13 +154,13 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 			if support.Status.Phase == v1alpha1.ArgoSupportPhaseRunning {
 				continue
 			}
-			if obj != nil && len(obj.Status.Results) > 1 {
-				sort.SliceStable(obj.Status.Results, func(i, j int) bool {
-					return (obj.Status.Results[i].FinishedAt.Time).After(obj.Status.Results[j].FinishedAt.Time)
+			if &support != nil && len(support.Status.Results) > 1 {
+				sort.SliceStable(support.Status.Results, func(i, j int) bool {
+					return (support.Status.Results[i].FinishedAt.Time).After(support.Status.Results[j].FinishedAt.Time)
 				})
 
-				if len(obj.Status.Results) > 2 {
-					support.Status.Results = obj.Status.Results[:2]
+				if len(support.Status.Results) > 2 {
+					support.Status.Results = support.Status.Results[:2]
 				}
 			}
 			now := metav1.Now()
@@ -189,6 +185,7 @@ func (r *SupportReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ct
 		if err != nil {
 			return err
 		}
+		obj.Status.Count++
 		obj.Status = support.Status
 		return r.Status().Update(ctx, &obj)
 	})
