@@ -25,9 +25,9 @@ export const ResourceCards = (
             const eventsMap: { [key: string]: any[] } = {};
             for (const res of props.app.status.resources) {
                 try {
-                    if (res != null) {
                     const node: models.ResourceNode = props.tree.nodes.find((node) => node.name === res.name && node.kind === res.kind && node.namespace === res.namespace);
-                    eventsMap[res.name] = await getEvents(props.app, res, node?.uid);
+                    if (res != null && node?.uid !== undefined) {
+                        eventsMap[res.name] = await getEvents(props.app, res, node?.uid);
                     }
                 } catch (error) {
                     console.error('Error fetching events:', error);
@@ -42,7 +42,7 @@ export const ResourceCards = (
     return (
         <>
             {resNode.map(res => (
-                <div key ={res.name}
+                <div key ={res.kind+res.namespace+res.name}
                     className='applications-tiles argo-table-list argo-table-list--clickable row small-up-1 medium-up-2 large-up-3 xxxlarge-up-4' style={{margin: '2px'}}>
                     <div
                         className={`argo-table-list__row applications-list__entry applications-list__entry--health-${res.health?.status}`} style={{width:'350px'}}>
@@ -85,13 +85,14 @@ export const ResourceCards = (
                                     )}
                             </div>
                             <div className='row'>
-                                ERROR MESSAGE:  &nbsp;
+                                ERROR MESSAGE: &nbsp; <br />
                                 {res?.health?.message ? (
-                                    <span className='resource__item-value' style={{backgroundColor: '#eff3f5db'}}>
-                                        {res?.health?.message}
-                                        </span>
-                                        ) : 'No error message'
-                                }
+                                    <div className='resource__item-value' style={{backgroundColor: '#eff3f5db'}}>
+                                        {res.health.message}
+                                    </div>
+                                ) : (
+                                    'No error message'
+                                )}
                             </div>
                         </div>
                     </div>

@@ -127,7 +127,7 @@ export const ComparisonStatusIcon = ({
             className = `fa fa-circle-notch ${noSpin ? '' : 'fa-spin'}`;
             break;
     }
-    return React.createElement('i', {
+    return React.createElement('i', { 'key': 'sync-status-icon',
         'qe-id': 'utils-sync-status-title',
         title: status,
         className: className,

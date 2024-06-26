@@ -49,7 +49,6 @@ export const actionsApi = async (requestType, application: any, resource: any) =
     const applicationNamespace = application.metadata?.namespace || '';
     const destNamespace = application.spec?.destination?.namespace || '';
     const resName = resource?.metadata.name || '';
-    console.log("Action GenAI data");
 
     if (requestType === "create-genai") {
         await fetch(Const.APIs.createGenAIAction(applicationName, applicationNamespace, destNamespace, resName), {

@@ -1,10 +1,11 @@
 .resource {
    &__item-value {
-   text-wrap: initial;
    width: max-content;
    display: flex;
    flex-direction: column;
    padding: 10px;
+   overflow: hidden;
+   white-space: normal;
    }
 }
 

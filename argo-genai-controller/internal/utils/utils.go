@@ -116,18 +116,13 @@ func StripTheKeys(obj metav1.Object) metav1.Object {
 func GetInlinePrompt(step string, data string) string {
 	switch step {
 	case "main_instructions":
-		return "Disregard any previous instructions provided. You are expert in debugging the kubernetes issues, " +
-			"Follow this instruction provide the debug summary in points. In summary highlight the field  from yaml which might cause the issue" +
-			" don't add point which is not provided in resource. When you construct the summary remove  first line of heading title and statement in your response" +
-			" When analysis the issue do not make any  assumptions or add extra details or add details which is irrelevant to debugging." +
-			" Along this main instructions, I'll provide additional inline instructions that contain inside the tag " +
-			"<prompt></prompt> follow up by  resource spec and status that need to be inferred for debugging the issue."
+		return "Starting below, you will find a series of inline prompts in tag <prompt></prompt> to help you analyze the issue."
 	case "app-healthy":
 		return "<prompt>app seems to be healthy, there nothing to analysis. discard any previous prompt and don't summarize any details provided. Echo the message app seems to be healthy  and nothing to summarize</prompt>"
 	case "app-unhealthy":
 		return "<prompt>app seems to be not healthy, check app statue</prompt>"
-	case "non-healthy-res":
-		return "<prompt>evaluate the non healthy  resource based on the message</prompt>"
+	case "unhealthy-res":
+		return "<prompt>evaluate the unhealthy  resource based on the resource health message</prompt>"
 	case "app-conditions":
 		return "<prompt>When analyzing rollout, be sure to consider for conditions 'reason' and inference the message that true and progressed for more than 15 mins (lastTransitionTime - lastUpdateTime). " +
 			"Analyse if condition is stuck based on the time" +
@@ -136,26 +131,29 @@ func GetInlinePrompt(step string, data string) string {
 
 	case "rollout":
 		return "<prompt>When analyzing the rollout, first things to analyse is status.phase. If phase is healthy return the message to" +
-			"user  Rollout seems to be healthy, there is no apparent issue or error that needs debugging. (Stop here)." +
+			"user  Rollout seems to be healthy, there is no apparent issue or error that needs debugging." +
 			" If phase is not Healthy, then include following field into your analysis phase, observedGeneration, message, compare  stableRS = podTemplateHash" +
 			" evaluate conditions that  true for more than 15 mins," +
-			" diff between lastUpdateTime and lastTransitionTime and estimate if the condition is stuck for long. Discard any condition which is false from your debugging" +
-			". If you NOT able identify the root cause, don't provide any explanation and  limit the answer to recommend user to check with argo support</prompt>"
-	case "event":
-		return "<prompt>When debugging the issue analyse events related to  resources. Don't include event older than 15 mins</prompt>"
+			" diff between lastUpdateTime and lastTransitionTime and estimate if the condition is stuck for long. " +
+			"Discard any condition which is false from your debugging. In your summary highlight the issue from spec and status." +
+			"If you NOT able identify the root cause, don't provide any explanation and  limit the answer to recommend user to check with argo support</prompt>"
 	case "analysis-runs":
-		return "<prompt>When debugging the AnalysisRun resource when  phase: Error. Check if there are any failed metrics. Discard the summary  of the analysisrun  that contain message: Run Terminated with   phase: Successful and no metrics failures </prompt>"
+		return "<prompt>When debugging include AnalysisRun resource when  phase: Error. Check if there are any failed metrics. Discard the status  of the analysisrun  that contain message: Run Terminated with   phase: Successful and no metrics failures </prompt>"
 	case "no-pod-log":
 		return "<prompt>pod logs is not available, as pod could be terminated. Check the events and rollout or deployment  is aborted include this data in the analysis</prompt>"
 	case "logs-with-error":
-		return "<prompt>evaluate the logs for error that causing the failure. In you summary highlight any pods failure that causing pods to fail</prompt>"
+		return "<prompt>In your analysis include the logs for error that cause the failure. In you summary highlight any pods failure that causing pods to fail</prompt>"
 	case "podContainerStatus":
 		return "<prompt>evaluate the containerStatus for error that causing the failure. In you summary highlight any container status that causing pods to fail</prompt>"
 	case "podInitContainerStatus":
 		return "<prompt>evaluate the InitContainerStatuses for error that causing the failure. In you summary highlight any Initcontainer status that causing pods to fail</prompt>"
 	case "events":
-		return "<prompt>valuate the events, related the event types with  resource status, ignore the  events order than 30 mins.</prompt>"
-
+		return "<prompt>In your analysis, include any events, related the event types with  resource status, ignore if events doesn't exits or  events order than 30 mins.</prompt>"
+	case "end_instructions":
+		return "All data is provided above to you for analysis , include all the data provided to you in the finalise the summary Markdown format." +
+			"Spend enough time to so through each details provided." +
+			"Don't include any extra details or assumptions. If you are not able to identify the root cause or unsure," +
+			" recommend user to check with argo support or stackoverflow"
 	default:
 		return ""
 	}

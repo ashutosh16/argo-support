@@ -264,6 +264,7 @@ func (g *GenAIOperator) buildAITokens(ctx context.Context, appStatus *common.App
 	}
 
 	g.collectEventData(ctx, &builder, o, logger)
+	builder.WriteString(utils.GetInlinePrompt("end_instructions", ""))
 	return builder.String(), nil
 }
 
@@ -282,8 +283,8 @@ func (g *GenAIOperator) processApplicationStatus(builder *strings.Builder, appSt
 	}
 
 	for _, res := range appStatus.Resources {
-		builder.WriteString(utils.GetInlinePrompt("non-healthy-res", ""))
 		if res.Health != nil && res.Health.Status != common.HealthStatusHealthy {
+			builder.WriteString(utils.GetInlinePrompt("unhealthy-res", ""))
 			builder.WriteString(fmt.Sprintf("Resource Name: %s Resource Health: %s  and kubernetes Message: %s", res.Name, res.Health.Status, res.Health.Message))
 		}
 	}

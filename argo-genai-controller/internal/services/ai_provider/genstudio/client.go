@@ -101,7 +101,7 @@ func (client *GenStudioClient) SubmitTokensToGenAI(ctx context.Context, tokens s
 	}
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		logger.Error(err, "received response error from genai", "status-code", resp.StatusCode)
+		logger.Error(err, "received response error from genai", "status-code", err.Error())
 		return nil, err
 	}
 
@@ -114,11 +114,12 @@ func (client *GenStudioClient) SubmitTokensToGenAI(ctx context.Context, tokens s
 	if err != nil {
 		return nil, err
 	}
-	var resData interface{}
-	err = json.Unmarshal(resDataBytes, &resData)
 	if resp.StatusCode >= 400 {
 		return nil, fmt.Errorf("unexpected response status: %v", resp.Status)
 	}
+
+	var resData interface{}
+	err = json.Unmarshal(resDataBytes, &resData)
 
 	return resData, nil
 }

@@ -7,7 +7,7 @@
 
 
   &__health-title {
-    font-size: 20px;
+    font-size: 22px;
     font-weight: 500;
     padding: 20px
   }
@@ -28,25 +28,25 @@
 
 
     &__main {
-      display: flex;
+      font-size: 16px;
+      width: 100%;
       flex-flow: column nowrap;
 
       &__analysis-title {
         display: flex;
-        font-size: 18px;
+        font-size: 22px;
         font-weight: 400;
         margin-bottom: 20px;
         flex-direction: column;
         padding-left: 20px;
 
         .last-summarized-timestamp {
-          font-size: 10px;
+          font-size: 14px;
           font-weight: 200;
 
         }
       }
       .content {
-        width: 750px;
         font-size: 16px;
         font-weight: 200;
         padding: 20px
@@ -55,7 +55,7 @@
     }
 
     &__feedback {
-      padding-left: 50px;
+      padding-left: 20px;
     }
 
      &__feedback-help {
